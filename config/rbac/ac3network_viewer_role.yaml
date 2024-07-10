@@ -1,0 +1,27 @@
+# permissions for end users to view ac3networks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ac3network-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: ac3no
+    app.kubernetes.io/part-of: ac3no
+    app.kubernetes.io/managed-by: kustomize
+  name: ac3network-viewer-role
+rules:
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - ac3networks
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - ac3networks/status
+  verbs:
+  - get

@@ -1,0 +1,9 @@
+apiVersion: ac3.redhat.com/v1alpha1
+kind: AC3Network
+metadata:
+  name: example-ac3network
+  namespace: ac3no  # Specify the namespace here
+spec:
+  # Add your spec details here
+  name: example-ac3network
+  namespace: ac3no  # Specify the namespace here
