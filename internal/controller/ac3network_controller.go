@@ -82,9 +82,12 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
     logger.Info("Starting Reconcile loop", "request", req)
 
-    // Define name and namespace for the Secret
-    secretName := "sk1-token" // Replace with your desired Secret name
-    secretNamespace := "sk1"  // Replace with your desired namespace
+    // Define the namespaces for ConfigMap
+    configMapNamespaces := []string{"sk1", "sk2"}
+
+    // Handle the Secret only for the sk1 namespace
+    secretNamespace := "sk1"
+    secretName := "sk1-token"
 
     // Check if the Secret exists
     secret := &corev1.Secret{}
@@ -115,38 +118,39 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
         logger.Info("Labeled Secret", "name", secretName, "namespace", secretNamespace)
     }
 
-    // Define name and namespace for the ConfigMap
-    name := "skupper-site" // Replace with your desired ConfigMap name
-    namespace := "sk1" // Replace with your desired namespace
-    data := map[string]string{
-        "example.key": "example.value", // Add your key-value pairs here
-    }
-
-    // Check if the ConfigMap exists
-    configMap := &corev1.ConfigMap{}
-    err = r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, configMap)
-    if err != nil {
-        if client.IgnoreNotFound(err) != nil {
-            logger.Error(err, "Failed to get ConfigMap", "name", name, "namespace", namespace)
-            return ctrl.Result{}, err
+    // Handle the ConfigMap creation and update in both sk1 and sk2 namespaces
+    for _, namespace := range configMapNamespaces {
+        configMapName := "skupper-site"
+        data := map[string]string{
+            "example.key": "example.value",
         }
 
-        // If ConfigMap is not found, create it
-        configMap = r.createConfigMap(ctx, name, namespace, data)
-        if err := r.Create(ctx, configMap); err != nil {
-            logger.Error(err, "Failed to create ConfigMap", "name", name, "namespace", namespace)
-            return ctrl.Result{}, err
-        }
-        logger.Info("Created ConfigMap", "name", name, "namespace", namespace)
-    } else {
-        // If ConfigMap is found, check if it needs to be updated
-        if r.needsUpdateConfigMap(configMap, data) {
-            configMap.Data = data
-            if err := r.Update(ctx, configMap); err != nil {
-                logger.Error(err, "Failed to update ConfigMap", "name", name, "namespace", namespace)
+        // Check if the ConfigMap exists
+        configMap := &corev1.ConfigMap{}
+        err = r.Get(ctx, types.NamespacedName{Name: configMapName, Namespace: namespace}, configMap)
+        if err != nil {
+            if client.IgnoreNotFound(err) != nil {
+                logger.Error(err, "Failed to get ConfigMap", "name", configMapName, "namespace", namespace)
                 return ctrl.Result{}, err
             }
-            logger.Info("Updated ConfigMap", "name", name, "namespace", namespace)
+
+            // If ConfigMap is not found, create it
+            configMap = r.createConfigMap(ctx, configMapName, namespace, data)
+            if err := r.Create(ctx, configMap); err != nil {
+                logger.Error(err, "Failed to create ConfigMap", "name", configMapName, "namespace", namespace)
+                return ctrl.Result{}, err
+            }
+            logger.Info("Created ConfigMap", "name", configMapName, "namespace", namespace)
+        } else {
+            // If ConfigMap is found, check if it needs to be updated
+            if r.needsUpdateConfigMap(configMap, data) {
+                configMap.Data = data
+                if err := r.Update(ctx, configMap); err != nil {
+                    logger.Error(err, "Failed to update ConfigMap", "name", configMapName, "namespace", namespace)
+                    return ctrl.Result{}, err
+                }
+                logger.Info("Updated ConfigMap", "name", configMapName, "namespace", namespace)
+            }
         }
     }
 
@@ -213,6 +217,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
     return ctrl.Result{}, nil
 }
 
+
 func (r *AC3NetworkReconciler) createDeployment(ctx context.Context, routerInstance *SkupperRouter) *appsv1.Deployment {
     logger := log.FromContext(ctx)
 
@@ -239,7 +244,7 @@ func (r *AC3NetworkReconciler) createDeployment(ctx context.Context, routerInsta
                     Containers: []corev1.Container{
                         {
                             Name:  "ac3-network-controller",
-                            Image: "quay.io/ryjenkin/ac3no3:22", // Replace with your actual image
+                            Image: "quay.io/ryjenkin/ac3no3:27", // Replace with your actual image
                             Ports: []corev1.ContainerPort{
                                 {
                                     ContainerPort: 8080, // Example port, change as necessary
