@@ -3,6 +3,7 @@ package controller
 import (
     "context"
     "fmt"
+    "time"
 
     "k8s.io/apimachinery/pkg/runtime"
     "k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,6 +20,8 @@ import (
     "k8s.io/apimachinery/pkg/types"
     corev1 "k8s.io/api/core/v1"
     "k8s.io/apimachinery/pkg/api/resource"
+    
+
 )
 
 // AC3NetworkReconciler reconciles an AC3Network object
@@ -237,27 +240,47 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
 
 // copySecretToNamespace copies a secret to another namespace
 func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret *corev1.Secret, targetNamespace string) error {
+    // Retrieve the original secret
+    //sleep for 15 seconds
+    logger := log.FromContext(ctx)
+    time.Sleep(15 * time.Second)
+    err := r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}, secret)
+    if err != nil {
+        return err
+    }
+    
+    // Create a deep copy of the secret
     secretCopy := secret.DeepCopy()
+    // Set the target namespace
     secretCopy.ObjectMeta.Namespace = targetNamespace
-       
+    // Clear the ResourceVersion for the new object
     secretCopy.ObjectMeta.ResourceVersion = ""
-
-    err := r.Create(ctx, secretCopy)
+    // Attempt to create the secret in the target namespace
+    //print out secret copy to log
+    logger.Info("Secret copy", "secret", secretCopy)
+    err = r.Create(ctx, secretCopy)
     if err != nil && errors.IsAlreadyExists(err) {
-        // If already exists, update it
+        // If the secret already exists, update it
         existingSecret := &corev1.Secret{}
         err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
         if err != nil {
             return err
         }
+        
+        // Update the existing secret's data
         existingSecret.Data = secretCopy.Data
+        
+        // Retrieve the existing secret from the target namespace
+        // Update the existing secret in the target namespace
         err = r.Update(ctx, existingSecret)
         if err != nil {
             return err
         }
+        // Update the existing secret's data with the data from the copied secret
     }
     return err
 }
+
 
 // createConfigMap creates a new ConfigMap with the specified name, namespace, and data
 func (r *AC3NetworkReconciler) createConfigMap(ctx context.Context, name string, namespace string, data map[string]string) *corev1.ConfigMap {
@@ -375,7 +398,7 @@ func (r *AC3NetworkReconciler) createSkupperRouterDeployment(ctx context.Context
                     Containers: []corev1.Container{
                         {
                             Name:  "skupper-router",
-                            Image: "quay.io/ryjenkin/ac3no3:57",
+                            Image: "quay.io/ryjenkin/ac3no3:59",
                             Resources: corev1.ResourceRequirements{
                                 Limits: corev1.ResourceList{
                                     corev1.ResourceCPU:    resource.MustParse("500m"),
