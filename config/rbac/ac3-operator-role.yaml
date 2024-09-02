@@ -1,0 +1,22 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ac3-operator-role
+rules:
+- apiGroups: [""]
+  resources:
+    - configmaps
+    - secrets
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+- apiGroups: [""]
+  resources:
+    - pods
+  verbs:
+    - create
