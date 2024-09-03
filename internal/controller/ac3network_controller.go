@@ -112,36 +112,41 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
         return reconcile.Result{}, err
     }
 
-    // 4. Iterate through contexts and interact with clusters
-    for contextName, context := range kubeconfig.Contexts {
-        clusterName := context.Cluster
-        logger.Info("Switching context", "context", contextName, "cluster", clusterName)
+    // logger := log.FromContext(ctx)
+    // //print out content of kubeconfig
+    // logger.Info("Kubeconfig", "kubeconfig", string(kubeconfigContent))
 
-        // Create a REST config for the cluster
-        config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
-        if err != nil {
-            logger.Error(err, "Failed to create Kubernetes client config", "context", contextName)
-            continue
-        }
+// 4. Iterate through contexts and interact with clusters
+for contextName, ctxData := range kubeconfig.Contexts {
+    clusterName := ctxData.Cluster
+    logger.Info("Switching context", "context", contextName, "cluster", clusterName)
 
-        clientset, err := kubernetes.NewForConfig(config)
-        if err != nil {
-            logger.Error(err, "Failed to create Kubernetes clientset", "context", contextName)
-            continue
-        }
-
-        // Example: List all pods in the default namespace of the current context
-        pods, err := clientset.CoreV1().Pods("default").List(context, metav1.ListOptions{})
-        if err != nil {
-            logger.Error(err, "Failed to list pods in default namespace", "context", contextName)
-            continue
-        }
-
-        // Log pod names
-        for _, pod := range pods.Items {
-            logger.Info("Pod found", "context", contextName, "name", pod.Name)
-        }
+    // Create a REST config for the cluster
+    config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
+    if err != nil {
+        logger.Error(err, "Failed to create Kubernetes client config", "context", contextName)
+        continue
     }
+
+    clientset, err := kubernetes.NewForConfig(config)
+    if err != nil {
+        logger.Error(err, "Failed to create Kubernetes clientset", "context", contextName)
+        continue
+    }
+
+    // Example: List all pods in the default namespace of the current context
+    pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+    if err != nil {
+        logger.Error(err, "Failed to list pods in default namespace", "context", contextName)
+        continue
+    }
+
+    // Log pod names
+    for _, pod := range pods.Items {
+        logger.Info("Pod found", "podName", pod.Name, "context", contextName)
+    }
+}
+
 
     // 5. Manage ConfigMaps in different namespaces (sk1 and sk2)
     configMapNamespaces := []string{"sk1", "sk2"}
@@ -338,7 +343,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
                             Containers: []corev1.Container{
                                 {
                                     Name:  "skupper-router",
-                                    Image: "quay.io/ryjenkin/ac3no3:87",
+                                    Image: "quay.io/ryjenkin/ac3no3:88",
                                     Ports: []corev1.ContainerPort{
                                         {
                                             Name:          "amqp",
