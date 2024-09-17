@@ -112,41 +112,35 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
         return reconcile.Result{}, err
     }
 
-    // logger := log.FromContext(ctx)
-    // //print out content of kubeconfig
-    // logger.Info("Kubeconfig", "kubeconfig", string(kubeconfigContent))
+    // 4. Iterate through contexts and interact with clusters
+    for contextName, _ := range kubeconfig.Contexts {
+        logger.Info("Switching context", "context", contextName)
 
-// 4. Iterate through contexts and interact with clusters
-for contextName, ctxData := range kubeconfig.Contexts {
-    clusterName := ctxData.Cluster
-    logger.Info("Switching context", "context", contextName, "cluster", clusterName)
+        // Create a REST config for the cluster
+        config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
+        if err != nil {
+            logger.Error(err, "Failed to create Kubernetes client config", "context", contextName)
+            continue
+        }
 
-    // Create a REST config for the cluster
-    config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
-    if err != nil {
-        logger.Error(err, "Failed to create Kubernetes client config", "context", contextName)
-        continue
+        clientset, err := kubernetes.NewForConfig(config)
+        if err != nil {
+            logger.Error(err, "Failed to create Kubernetes clientset", "context", contextName)
+            continue
+        }
+
+        // Example: List all pods in the default namespace of the current context
+        pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+        if err != nil {
+            logger.Error(err, "Failed to list pods in default namespace", "context", contextName)
+            continue
+        }
+
+        // Log pod names
+        for _, pod := range pods.Items {
+            logger.Info("Pod found", "podName", pod.Name, "context", contextName)
+        }
     }
-
-    clientset, err := kubernetes.NewForConfig(config)
-    if err != nil {
-        logger.Error(err, "Failed to create Kubernetes clientset", "context", contextName)
-        continue
-    }
-
-    // Example: List all pods in the default namespace of the current context
-    pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
-    if err != nil {
-        logger.Error(err, "Failed to list pods in default namespace", "context", contextName)
-        continue
-    }
-
-    // Log pod names
-    for _, pod := range pods.Items {
-        logger.Info("Pod found", "podName", pod.Name, "context", contextName)
-    }
-}
-
 
     // 5. Manage ConfigMaps in different namespaces (sk1 and sk2)
     configMapNamespaces := []string{"sk1", "sk2"}
@@ -216,32 +210,58 @@ for contextName, ctxData := range kubeconfig.Contexts {
     logger.Info("Secret sk1-token copied to namespace sk2 successfully")
 
     // 7. Log Skupper link status
-    err = r.logSkupperLinkStatus(ctx, "sk2")
-    if err != nil {
-        logger.Error(err, "Failed to get Skupper link status", "namespace", "sk2")
-        return reconcile.Result{}, err
-    }
+    // err = r.logSkupperLinkStatus(ctx, "sk2")
+    // if err != nil {
+    //     logger.Error(err, "Failed to get Skupper link status", "namespace", "sk2")
+    //     return reconcile.Result{}, err
+    // }
 
     // 8. Fetch the AC3Network instance and reconcile SkupperRouter instances
-    ac3Network := &ac3v1alpha1.AC3Network{}
-    if err := r.Get(ctx, req.NamespacedName, ac3Network); err != nil {
-        logger.Error(err, "Failed to fetch AC3Network")
-        return reconcile.Result{}, client.IgnoreNotFound(err)
-    }
+    // ac3Network := &ac3v1alpha1.AC3Network{}
+    // if err := r.Get(ctx, req.NamespacedName, ac3Network); err != nil {
+    //     logger.Error(err, "Failed to fetch AC3Network")
+    //     return reconcile.Result{}, client.IgnoreNotFound(err)
+    // }
 
-    // List all instances of SkupperRouter
-    routerList := SkupperRouterList{}
-    if err := r.List(ctx, &routerList, client.InNamespace(req.Namespace)); err != nil {
-        logger.Error(err, "Failed to list SkupperRouter instances")
-        return reconcile.Result{}, err
-    }
+    // // List all instances of SkupperRouter
+    // routerList := SkupperRouterList{}
+    // if err := r.List(ctx, &routerList, client.InNamespace(req.Namespace)); err != nil {
+    //     logger.Error(err, "Failed to list SkupperRouter instances")
+    //     return reconcile.Result{}, err
+    // }
 
-    // Reconcile each SkupperRouter instance
-    for _, routerInstance := range routerList.Items {
-        err := r.reconcileSkupperRouter(ctx, routerInstance)
-        if err != nil {
-            logger.Error(err, "Failed to reconcile SkupperRouter", "name", routerInstance.Name, "namespace", routerInstance.Namespace)
-            return reconcile.Result{}, err
+    // // Reconcile each SkupperRouter instance
+    // for _, routerInstance := range routerList.Items {
+    //     err := r.reconcileSkupperRouter(ctx, routerInstance)
+    //     if err != nil {
+    //         logger.Error(err, "Failed to reconcile SkupperRouter", "name", routerInstance.Name, "namespace", routerInstance.Namespace)
+    //         return reconcile.Result{}, err
+    //     }
+    // }
+
+    logger.Info("IM HERE")
+
+    // 9. Iterate through contexts and switch to ac3-cluster-1 before copying the token
+    // This ensures we are in the right context when copying the token to the default namespace of ac3-cluster-1
+    targetContextName := "ac3-cluster-1"
+    for contextName, _ := range kubeconfig.Contexts {
+        if contextName == targetContextName {
+            logger.Info("Switching context to ac3-cluster-1", "context", contextName)
+            _, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
+            if err != nil {
+                logger.Error(err, "Failed to create Kubernetes client config for ac3-cluster-1", "context", contextName)
+                return reconcile.Result{}, err
+            }
+
+            // Copy the token to the default namespace on ac3-cluster-1
+            err = r.copySecretToNamespace(ctx, secret, "default")
+            if err != nil {
+                logger.Error(err, "Failed to copy Secret to default namespace on ac3-cluster-1")
+                return reconcile.Result{}, err
+            }
+
+            logger.Info("Secret sk1-token copied to default namespace on ac3-cluster-1 successfully")
+            break
         }
     }
 
@@ -249,6 +269,7 @@ for contextName, ctxData := range kubeconfig.Contexts {
 
     return reconcile.Result{}, nil
 }
+
 
 
 
@@ -343,7 +364,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
                             Containers: []corev1.Container{
                                 {
                                     Name:  "skupper-router",
-                                    Image: "quay.io/ryjenkin/ac3no3:88",
+                                    Image: "quay.io/ryjenkin/ac3no3:100",
                                     Ports: []corev1.ContainerPort{
                                         {
                                             Name:          "amqp",
