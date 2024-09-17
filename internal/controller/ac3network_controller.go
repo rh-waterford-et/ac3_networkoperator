@@ -241,34 +241,82 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
     logger.Info("IM HERE")
 
-    // 9. Iterate through contexts and switch to ac3-cluster-1 before copying the token
-    // This ensures we are in the right context when copying the token to the default namespace of ac3-cluster-1
-    targetContextName := "ac3-cluster-1"
+    // Target clusters and namespaces
+    sourceCluster := "ac3-cluster-2"
+    targetCluster := "ac3-cluster-1"
+    sourceNamespace := "sk1"
+    targetNamespace := "default"
+    secretName2 := "sk1-token"
+
+    // Step 1: Switch to ac3-cluster-2 and get the secret from the sk1 namespace
     for contextName, _ := range kubeconfig.Contexts {
-        if contextName == targetContextName {
-            logger.Info("Switching context to ac3-cluster-1", "context", contextName)
-            _, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
+        if contextName == sourceCluster {
+            logger.Info("Switching context to ac3-cluster-2", "context", contextName)
+
+            // Get Kubernetes client for ac3-cluster-2
+            sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
             if err != nil {
-                logger.Error(err, "Failed to create Kubernetes client config for ac3-cluster-1", "context", contextName)
+                logger.Error(err, "Failed to create Kubernetes client config for ac3-cluster-2", "context", contextName)
                 return reconcile.Result{}, err
             }
 
-            // Copy the token to the default namespace on ac3-cluster-1
-            err = r.copySecretToNamespace(ctx, secret, "default")
+            sourceClientset, err := kubernetes.NewForConfig(sourceConfig)
             if err != nil {
-                logger.Error(err, "Failed to copy Secret to default namespace on ac3-cluster-1")
+                logger.Error(err, "Failed to create Kubernetes clientset for ac3-cluster-2", "context", contextName)
                 return reconcile.Result{}, err
             }
 
-            logger.Info("Secret sk1-token copied to default namespace on ac3-cluster-1 successfully")
+            // Get the secret from sk1 namespace
+            secret, err := sourceClientset.CoreV1().Secrets(sourceNamespace).Get(ctx, secretName2, metav1.GetOptions{})
+            if err != nil {
+                logger.Error(err, "Failed to get secret from sk1 namespace in ac3-cluster-2", "secretName2", secretName2)
+                return reconcile.Result{}, err
+            }
+
+            logger.Info("Successfully retrieved sk1-token from ac3-cluster-2", "secretName2", secret.Name)
+
+            // Step 2: Switch to ac3-cluster-1 and copy the secret to the default namespace
+            for targetContextName, _ := range kubeconfig.Contexts {
+                if targetContextName == targetCluster {
+                    logger.Info("Switching context to ac3-cluster-1", "context", targetContextName)
+
+                    // Get Kubernetes client for ac3-cluster-1
+                    targetConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, targetContextName, nil, nil).ClientConfig()
+                    if err != nil {
+                        logger.Error(err, "Failed to create Kubernetes client config for ac3-cluster-1", "context", targetContextName)
+                        return reconcile.Result{}, err
+                    }
+
+                    targetClientset, err := kubernetes.NewForConfig(targetConfig)
+                    if err != nil {
+                        logger.Error(err, "Failed to create Kubernetes clientset for ac3-cluster-1", "context", targetContextName)
+                        return reconcile.Result{}, err
+                    }
+
+                    // Create a deep copy of the secret and set the new namespace
+                    secretCopy := secret.DeepCopy()
+                    secretCopy.Namespace = targetNamespace
+                    secretCopy.ResourceVersion = "" // Clear the resource version to allow creation in the new namespace
+
+                    // Create the secret in the default namespace on ac3-cluster-1
+                    _, err = targetClientset.CoreV1().Secrets(targetNamespace).Create(ctx, secretCopy, metav1.CreateOptions{})
+                    if err != nil {
+                        logger.Error(err, "Failed to create secret in default namespace on ac3-cluster-1", "context", targetContextName)
+                        return reconcile.Result{}, err
+                    }
+
+                    logger.Info("Successfully copied sk1-token to default namespace on ac3-cluster-1")
+                    break
+                }
+            }
             break
         }
     }
 
-    logger.Info("Reconcile loop completed successfully", "request", req)
-
+    logger.Info("Reconcile loop completed successfully")
     return reconcile.Result{}, nil
 }
+
 
 
 
@@ -281,6 +329,7 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
         ObjectMeta: metav1.ObjectMeta{
             Name:      name,
             Namespace: namespace,
+
         },
         Data: map[string][]byte{
             "example.key": []byte("example.value"),
@@ -364,7 +413,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
                             Containers: []corev1.Container{
                                 {
                                     Name:  "skupper-router",
-                                    Image: "quay.io/ryjenkin/ac3no3:100",
+                                    Image: "quay.io/ryjenkin/ac3no3:102",
                                     Ports: []corev1.ContainerPort{
                                         {
                                             Name:          "amqp",
