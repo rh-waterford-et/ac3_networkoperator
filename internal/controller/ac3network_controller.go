@@ -200,6 +200,9 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
         }
     }
 
+    // Log the success of copying the sk1-token to the sk2 namespace
+    logger.Info("Secret sk1-token copied to namespace sk2 successfully")
+
     // Copy the Secret to the sk2 namespace
     err = r.copySecretToNamespace(ctx, secret, "sk2")
     if err != nil {
@@ -273,7 +276,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
                 return reconcile.Result{}, err
             }
 
-            logger.Info("Successfully retrieved sk1-token from ac3-cluster-2", "secretName2", secret.Name)
+            logger.Info("Successfully retrieved sk1-token from ac3-cluster-2", "secretName2", secret)
 
             // Step 2: Switch to ac3-cluster-1 and copy the secret to the default namespace
             for targetContextName, _ := range kubeconfig.Contexts {
@@ -297,6 +300,13 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
                     secretCopy := secret.DeepCopy()
                     secretCopy.Namespace = targetNamespace
                     secretCopy.ResourceVersion = "" // Clear the resource version to allow creation in the new namespace
+                    
+                    // Ensure the data field is copied from the source secret
+                    //secretCopy.Data = secret.Data 
+
+                    // Log the secret data to check that it's being copied correctly
+                    logger.Info("Preparing to copy sk1-token to default namespace on ac3-cluster-1", "secretCopy", secretCopy)
+
 
                     // Create the secret in the default namespace on ac3-cluster-1
                     _, err = targetClientset.CoreV1().Secrets(targetNamespace).Create(ctx, secretCopy, metav1.CreateOptions{})
@@ -305,7 +315,35 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
                         return reconcile.Result{}, err
                     }
 
-                    logger.Info("Successfully copied sk1-token to default namespace on ac3-cluster-1")
+                    // Log success and ensure secret contents are correct
+                    logger.Info("Successfully copied sk1-token to default namespace on ac3-cluster-1", 
+                        "secretName2", secret.Name, 
+                        "targetNamespace", targetNamespace, 
+                        "data", secretCopy.Data)
+
+                        // Step to create a ConfigMap in the default namespace on ac3-cluster-1
+                        configMapData := map[string]string{
+                            "example.key": "example.value",
+                        }
+
+                        configMap := &corev1.ConfigMap{
+                            ObjectMeta: metav1.ObjectMeta{
+                                Name:      "skupper-site",
+                                Namespace: targetNamespace,
+                            },
+                            Data: configMapData,
+                        }
+
+                        // Create the ConfigMap in the default namespace on ac3-cluster-1
+                        _, err = targetClientset.CoreV1().ConfigMaps(targetNamespace).Create(ctx, configMap, metav1.CreateOptions{})
+                        if err != nil {
+                            logger.Error(err, "Failed to create ConfigMap in default namespace on ac3-cluster-1", "context", targetContextName)
+                            return reconcile.Result{}, err
+                        }
+
+                        logger.Info("Successfully created ConfigMap skupper-site in default namespace on ac3-cluster-1", "namespace", targetNamespace)
+    
+                        
                     break
                 }
             }
@@ -315,7 +353,8 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
     logger.Info("Reconcile loop completed successfully")
     return reconcile.Result{}, nil
-}
+
+    }
 
 
 
@@ -329,44 +368,90 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
         ObjectMeta: metav1.ObjectMeta{
             Name:      name,
             Namespace: namespace,
-
+            Labels: map[string]string{
+                "skupper.io/type": "connection-token-request",
+            },
         },
         Data: map[string][]byte{
-            "example.key": []byte("example.value"),
+            "connectionToken": []byte("some-token-data"),
         },
     }
 }
 
-// Helper function to copy a Secret to another namespace
+// copySecretToNamespace copies a secret to another namespace
 func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret *corev1.Secret, targetNamespace string) error {
+    // Retrieve the original secret
+    //sleep for 15 seconds
     logger := log.FromContext(ctx)
-    logger.Info("Copying Secret to another namespace", "sourceNamespace", secret.Namespace, "targetNamespace", targetNamespace)
-
-    time.Sleep(15 * time.Second) // Wait for 15 seconds
-
+    time.Sleep(15 * time.Second)
     err := r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}, secret)
     if err != nil {
-        logger.Error(err, "Failed to retrieve original Secret after sleep", "name", secret.Name, "namespace", secret.Namespace)
         return err
     }
-
-    newSecret := &corev1.Secret{
-        ObjectMeta: metav1.ObjectMeta{
-            Name:      secret.Name,
-            Namespace: targetNamespace,
-            Labels:    secret.Labels,
-        },
-        Data: secret.Data,
+    
+    // Create a deep copy of the secret
+    secretCopy := secret.DeepCopy()
+    // Set the target namespace
+    secretCopy.ObjectMeta.Namespace = targetNamespace
+    // Clear the ResourceVersion for the new object
+    secretCopy.ObjectMeta.ResourceVersion = ""
+    // Attempt to create the secret in the target namespace
+    //print out secret copy to log
+    logger.Info("Secret copy", "secret", secretCopy)
+    err = r.Create(ctx, secretCopy)
+    if err != nil && errors.IsAlreadyExists(err) {
+        // If the secret already exists, update it
+        existingSecret := &corev1.Secret{}
+        err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
+        if err != nil {
+            return err
+        }
+        
+        // Update the existing secret's data
+        existingSecret.Data = secretCopy.Data
+        
+        // Retrieve the existing secret from the target namespace
+        // Update the existing secret in the target namespace
+        err = r.Update(ctx, existingSecret)
+        if err != nil {
+            return err
+        }
+        // Update the existing secret's data with the data from the copied secret
     }
+    return err
+}
 
-    err = r.Create(ctx, newSecret)
-    if err != nil {
-        logger.Error(err, "Failed to copy Secret to target namespace", "targetNamespace", targetNamespace)
+
+// linkSkupperSites links the Skupper sites using the token
+func (r *AC3NetworkReconciler) linkSkupperSites(ctx context.Context, targetNamespace string, secret *corev1.Secret) error {
+    // Create the Skupper link by applying the secret in the target namespace
+    secretToApply := secret.DeepCopy()
+    secretToApply.Namespace = targetNamespace
+
+    // Clear the ResourceVersion to ensure it's a new object creation
+    secretToApply.ResourceVersion = ""
+
+    err := r.Create(ctx, secretToApply)
+    if err != nil && errors.IsAlreadyExists(err) {
+        // If already exists, update it
+        existingSecret := &corev1.Secret{}
+        err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
+        if err != nil {
+            return err
+        }
+        existingSecret.Data = secretToApply.Data
+        err = r.Update(ctx, existingSecret)
+        if err != nil {
+            return err
+        }
+    } else if err != nil {
         return err
     }
 
     return nil
 }
+
+
 
 // logSkupperLinkStatus logs the status of the Skupper link for a given namespace
 func (r *AC3NetworkReconciler) logSkupperLinkStatus(ctx context.Context, namespace string) error {
@@ -413,7 +498,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
                             Containers: []corev1.Container{
                                 {
                                     Name:  "skupper-router",
-                                    Image: "quay.io/ryjenkin/ac3no3:102",
+                                    Image: "quay.io/ryjenkin/ac3no3:121",
                                     Ports: []corev1.ContainerPort{
                                         {
                                             Name:          "amqp",
@@ -474,6 +559,8 @@ func (r *AC3NetworkReconciler) needsUpdateConfigMap(configMap *corev1.ConfigMap,
     }
     return false
 }
+
+
 
 // int32Ptr returns a pointer to an int32
 func int32Ptr(i int32) *int32 {

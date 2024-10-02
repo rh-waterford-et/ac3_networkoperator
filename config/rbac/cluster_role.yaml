@@ -16,7 +16,7 @@ rules:
   resources: ["pods", "services", "endpoints", "persistentvolumeclaims"]
   verbs: ["*"]
 - apiGroups: [""]
-  resources: ["secrets", "pods"]
+  resources: ["secrets", "pods", "configmaps"]
   verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 - apiGroups: ["apps"]
   resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
