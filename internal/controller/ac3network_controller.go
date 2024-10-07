@@ -89,9 +89,28 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
     logger.Info("Starting Reconcile loop", "request", req)
 
+    link := &ac3v1alpha1.Link{}
+    linkName := "test-link"
+    linkNamespace := "sk1" 
+    
+    err := r.Get(ctx, client.ObjectKey{
+        Namespace: linkNamespace,
+        Name:      linkName,
+    }, link)
+    
+    logger.Info("Fetching Link resource", "namespace", linkNamespace, "name", linkName)
+    if err != nil {
+        if errors.IsNotFound(err) {
+            logger.Info("Link resource not found, possibly deleted")
+            return reconcile.Result{}, nil
+        }
+        logger.Error(err, "Failed to get Link")
+        return reconcile.Result{}, err
+    }
+
     // 1. Fetch the ConfigMap with the combined kubeconfig
     configMap := &corev1.ConfigMap{}
-    err := r.Get(ctx, client.ObjectKey{Name: "ac3-combined-kubeconfig", Namespace: "sk1"}, configMap)
+    err = r.Get(ctx, client.ObjectKey{Name: "ac3-combined-kubeconfig", Namespace: "sk1"}, configMap)
     if err != nil {
         logger.Error(err, "Failed to get ConfigMap", "name", "ac3-combined-kubeconfig", "namespace", "sk1")
         return reconcile.Result{}, err
@@ -179,8 +198,8 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
     }
 
     // 6. Manage Secrets between sk1 and sk2 namespaces
-    secretNamespace := "sk1"
-    secretName := "sk1-token"
+    secretNamespace := link.Spec.SecretNamespace
+    secretName := link.Spec.SecretName
     secret := &corev1.Secret{}
 
     // Retrieve the Secret from the cluster
@@ -245,11 +264,11 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
     logger.Info("IM HERE")
 
     // Target clusters and namespaces
-    sourceCluster := "ac3-cluster-2"
-    targetCluster := "ac3-cluster-1"
-    sourceNamespace := "sk1"
-    targetNamespace := "default"
-    secretName2 := "sk1-token"
+    sourceCluster := link.Spec.SourceCluster
+    targetCluster := link.Spec.TargetCluster
+    sourceNamespace := link.Spec.SourceNamespace
+    targetNamespace := link.Spec.TargetNamespace
+    secretName2 := link.Spec.SecretName2
 
     // Step 1: Switch to ac3-cluster-2 and get the secret from the sk1 namespace
     for contextName, _ := range kubeconfig.Contexts {
@@ -498,7 +517,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
                             Containers: []corev1.Container{
                                 {
                                     Name:  "skupper-router",
-                                    Image: "quay.io/ryjenkin/ac3no3:121",
+                                    Image: "quay.io/ryjenkin/ac3no3:123",
                                     Ports: []corev1.ContainerPort{
                                         {
                                             Name:          "amqp",
@@ -571,6 +590,7 @@ func int32Ptr(i int32) *int32 {
 func (r *AC3NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
     return ctrl.NewControllerManagedBy(mgr).
         For(&ac3v1alpha1.AC3Network{}).
+        Owns(&ac3v1alpha1.Link{}).
         Complete(r)
 }
 

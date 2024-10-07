@@ -7,6 +7,6 @@ subjects:
   name: controller-manager
   namespace: sk1
 roleRef:
-  kind: ClusterRole
-  name: controller-manager-role
   apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: controller-manager-role  # Ensure this is the correct ClusterRole name
