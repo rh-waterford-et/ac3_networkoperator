@@ -92,11 +92,16 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
     link := &ac3v1alpha1.Link{}
     linkName := "test-link"
     linkNamespace := "sk1" 
+
+
+
     
     err := r.Get(ctx, client.ObjectKey{
         Namespace: linkNamespace,
         Name:      linkName,
     }, link)
+
+
     
     logger.Info("Fetching Link resource", "namespace", linkNamespace, "name", linkName)
     if err != nil {
@@ -107,6 +112,32 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
         logger.Error(err, "Failed to get Link")
         return reconcile.Result{}, err
     }
+
+    link2 := &ac3v1alpha1.Link{}
+    linkName2 := "test-link2"
+    linkNamespace2 := "sk1" 
+
+
+
+    
+    err = r.Get(ctx, client.ObjectKey{
+        Namespace: linkNamespace2,
+        Name:      linkName2,
+    }, link2)
+
+
+    
+    logger.Info("Fetching Link resource", "namespace", linkNamespace2, "name", linkName2)
+    if err != nil {
+        if errors.IsNotFound(err) {
+            logger.Info("Link resource not found, possibly deleted")
+            return reconcile.Result{}, nil
+        }
+        logger.Error(err, "Failed to get Link 2")
+        return reconcile.Result{}, err
+    }
+
+
 
     // 1. Fetch the ConfigMap with the combined kubeconfig
     configMap := &corev1.ConfigMap{}
@@ -166,6 +197,11 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
     configMapName := "skupper-site"
     data := map[string]string{
         "example.key": "example.value",
+        "console":                     "true",
+        "flow-collector":              "true",
+        "console-user":                "username",
+        "console-password":            "password",
+
     }
 
     for _, namespace := range configMapNamespaces {
@@ -517,7 +553,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
                             Containers: []corev1.Container{
                                 {
                                     Name:  "skupper-router",
-                                    Image: "quay.io/ryjenkin/ac3no3:123",
+                                    Image: "quay.io/ryjenkin/ac3no3:155",
                                     Ports: []corev1.ContainerPort{
                                         {
                                             Name:          "amqp",

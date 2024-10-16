@@ -1,0 +1,8 @@
+apiVersion: ac3.redhat.com/v1alpha1
+kind: AC3Network
+metadata:
+  name: example-ac3network
+  namespace: ac3no
+spec:
+  linkName: "test-link"
+  linkNamespace: "sk1"
