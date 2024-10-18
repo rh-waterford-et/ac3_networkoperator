@@ -1,8 +1,15 @@
 apiVersion: ac3.redhat.com/v1alpha1
 kind: AC3Network
 metadata:
-  name: example-ac3network
+  name: ray-ac3network
   namespace: ac3no
 spec:
-  linkName: "test-link"
-  linkNamespace: "sk1"
+  link:
+    sourceCluster: "ac3-cluster-2"
+    targetCluster: "ac3-cluster-1"
+    sourceNamespace: "sk1"
+    targetNamespace: "sk5"
+    secretNamespace: "sk1"
+    secretName: "sk1-token"
+    secretName2: "sk1-token"
+    port: 56733

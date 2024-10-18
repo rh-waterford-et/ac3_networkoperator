@@ -23,13 +23,24 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type AC3Link struct {
+	SourceCluster   string `json:"sourceCluster"`
+	TargetCluster   string `json:"targetCluster"`
+	SourceNamespace string `json:"sourceNamespace"`
+	TargetNamespace string `json:"targetNamespace"`
+	SecretNamespace string `json:"secretNamespace"`
+	SecretName      string `json:"secretName"`
+	SecretName2     string `json:"secretName2"`
+	Port            int    `json:"port"`
+}
+
 // AC3NetworkSpec defines the desired state of AC3Network
 type AC3NetworkSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of AC3Network. Edit ac3network_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	Link AC3Link `json:"link,omitempty"`
 }
 
 // AC3NetworkStatus defines the observed state of AC3Network

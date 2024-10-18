@@ -5,6 +5,18 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - ac3.redhat.com
   resources:
   - ac3networks
@@ -26,6 +38,32 @@ rules:
   - ac3.redhat.com
   resources:
   - ac3networks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - skupperrouters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - skupperrouters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - skupperrouters/status
   verbs:
   - get
   - patch
