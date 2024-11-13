@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -271,8 +272,12 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	sourceCluster := link.Spec.Link.SourceCluster
 	targetCluster := link.Spec.Link.TargetCluster
 	sourceNamespace := link.Spec.Link.SourceNamespace
-	targetNamespace := link.Spec.Link.TargetNamespace
+	targetNamespaces := link.Spec.Link.TargetNamespace
 	secretName2 := link.Spec.Link.SecretName2
+	
+	for _, targetNamespace := range targetNamespaces {
+
+	
 
 	// Step 1: Switch to ac3-cluster-2 and get the secret from the sk1 namespace
 	for contextName, _ := range kubeconfig.Contexts {
@@ -321,7 +326,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 					// Create a deep copy of the secret and set the new namespace
 					secretCopy := secret.DeepCopy()
-					secretCopy.Namespace = targetNamespace
+					secretCopy.Namespace = targetNamespace 
 					secretCopy.ResourceVersion = "" // Clear the resource version to allow creation in the new namespace
 
 					// Ensure the data field is copied from the source secret
@@ -330,9 +335,13 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 					// Log the secret data to check that it's being copied correctly
 					logger.Info("Preparing to copy sk1-token to default namespace on ac3-cluster-1", "secretCopy", secretCopy)
 
-					// Create the secret in the default namespace on ac3-cluster-1
+					// Create the secret in the namespace on ac3-cluster-1
 					_, err = targetClientset.CoreV1().Secrets(targetNamespace).Create(ctx, secretCopy, metav1.CreateOptions{})
 					if err != nil {
+						if strings.Contains(err.Error(), "already exists"){
+							logger.Info("Secret already exists in default namespace on ac3-cluster-1", "secretName2", secret.Name)
+							continue
+						}
 						logger.Error(err, "Failed to create secret in default namespace on ac3-cluster-1", "context", targetContextName)
 						return reconcile.Result{}, err
 					}
@@ -340,7 +349,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 					// Log success and ensure secret contents are correct
 					logger.Info("Successfully copied sk1-token to default namespace on ac3-cluster-1",
 						"secretName2", secret.Name,
-						"targetNamespace", targetNamespace,
+						"targetNamespace", targetNamespace ,
 						"data", secretCopy.Data)
 
 					// Step to create a ConfigMap in the default namespace on ac3-cluster-1
@@ -351,19 +360,19 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 					configMap := &corev1.ConfigMap{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "skupper-site",
-							Namespace: targetNamespace,
+							Namespace: targetNamespace ,
 						},
 						Data: configMapData,
 					}
 
-					// Create the ConfigMap in the default namespace on ac3-cluster-1
+					// Create the ConfigMap in the namespace on ac3-cluster-1
 					_, err = targetClientset.CoreV1().ConfigMaps(targetNamespace).Create(ctx, configMap, metav1.CreateOptions{})
 					if err != nil {
 						logger.Error(err, "Failed to create ConfigMap in default namespace on ac3-cluster-1", "context", targetContextName)
 						return reconcile.Result{}, err
 					}
 
-					logger.Info("Successfully created ConfigMap skupper-site in default namespace on ac3-cluster-1", "namespace", targetNamespace)
+					logger.Info("Successfully created ConfigMap skupper-site in namespace on ac3-cluster-1", "namespace", targetNamespace )
 
 					break
 				}
@@ -371,6 +380,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 			break
 		}
 	}
+}
 
 	logger.Info("Reconcile loop completed successfully")
 	return reconcile.Result{}, nil
@@ -510,7 +520,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:162",
+									Image: "quay.io/ryjenkin/ac3no3:166",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",

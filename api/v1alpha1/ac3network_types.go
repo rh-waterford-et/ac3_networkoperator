@@ -27,7 +27,7 @@ type AC3Link struct {
 	SourceCluster   string `json:"sourceCluster"`
 	TargetCluster   string `json:"targetCluster"`
 	SourceNamespace string `json:"sourceNamespace"`
-	TargetNamespace string `json:"targetNamespace"`
+	TargetNamespace []string `json:"targetNamespace"`
 	SecretNamespace string `json:"secretNamespace"`
 	SecretName      string `json:"secretName"`
 	SecretName2     string `json:"secretName2"`

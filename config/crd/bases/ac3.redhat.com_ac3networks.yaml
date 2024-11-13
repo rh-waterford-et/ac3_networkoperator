@@ -39,10 +39,38 @@ spec:
           spec:
             description: AC3NetworkSpec defines the desired state of AC3Network
             properties:
-              foo:
+              link:
                 description: Foo is an example field of AC3Network. Edit ac3network_types.go
                   to remove/update
-                type: string
+                properties:
+                  port:
+                    type: integer
+                  secretName:
+                    type: string
+                  secretName2:
+                    type: string
+                  secretNamespace:
+                    type: string
+                  sourceCluster:
+                    type: string
+                  sourceNamespace:
+                    type: string
+                  targetCluster:
+                    type: string
+                  targetNamespace:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - port
+                - secretName
+                - secretName2
+                - secretNamespace
+                - sourceCluster
+                - sourceNamespace
+                - targetCluster
+                - targetNamespace
+                type: object
             type: object
           status:
             description: AC3NetworkStatus defines the observed state of AC3Network

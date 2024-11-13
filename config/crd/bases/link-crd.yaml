@@ -36,7 +36,9 @@ spec:
                 sourceNamespace:
                   type: string
                 targetNamespace:
-                  type: string
+                  type: array
+                  items:
+                    type: string
                 secretNamespace:
                   type: string
                 secretName:
