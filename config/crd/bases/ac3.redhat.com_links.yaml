@@ -53,6 +53,8 @@ spec:
                 type: string
               targetNamespace:
                 type: string
+              applications:
+                type: string
             required:
             - port
             - secretName
@@ -62,6 +64,7 @@ spec:
             - sourceNamespace
             - targetCluster
             - targetNamespace
+            - applications
             type: object
           status:
             properties:

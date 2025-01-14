@@ -12,6 +12,9 @@ spec:
       - "sk3"
       - "sk4"
       - "sk5"
+    applications:
+      - "nginx"
+      - "nginx2"
     secretNamespace: "sk1"
     secretName: "sk1-token"
     secretName2: "sk1-token"

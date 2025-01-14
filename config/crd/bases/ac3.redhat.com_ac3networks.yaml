@@ -61,6 +61,10 @@ spec:
                     type: array
                     items:
                       type: string
+                  applications:
+                    type: array
+                    items:
+                      type: string
                 required:
                 - port
                 - secretName
@@ -70,6 +74,7 @@ spec:
                 - sourceNamespace
                 - targetCluster
                 - targetNamespace
+                - applications
                 type: object
             type: object
           status:

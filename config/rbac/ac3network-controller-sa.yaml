@@ -1,6 +1,0 @@
-# ac3network-controller-sa.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: ac3network-controller-sa
-  namespace: sk1  # Replace with the correct namespace

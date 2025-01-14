@@ -24,6 +24,7 @@ spec:
                 - targetCluster
                 - sourceNamespace
                 - targetNamespace
+                - applications
                 - secretNamespace
                 - secretName
                 - secretName2
@@ -36,6 +37,10 @@ spec:
                 sourceNamespace:
                   type: string
                 targetNamespace:
+                  type: array
+                  items:
+                    type: string
+                applications:
                   type: array
                   items:
                     type: string

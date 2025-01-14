@@ -46,6 +46,11 @@ type SkupperRouterSpec struct {
 	Namespace string `json:"namespace"`
 }
 
+type ApplicationSpec struct {
+    Name string `json:"name"`
+    // Port int    `json:"port"`
+}
+
 func (in *SkupperRouter) DeepCopyObject() runtime.Object {
 	out := SkupperRouter{
 		TypeMeta:   in.TypeMeta,
@@ -171,7 +176,27 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		"flow-collector":   "true",
 		"console-user":     "username",
 		"console-password": "password",
+		"router-cpu":                "500m", // Example: 500 millicores
+		"router-memory":             "256Mi", // Example: 256 MiB
+		"router-cpu-limit":          "1", // Example: 1 core
+		"router-memory-limit":       "512Mi", // Example: 512 MiB
+		"controller-cpu":            "250m", // Example: 250 millicores
+		"controller-memory":         "128Mi", // Example: 128 MiB
+		"controller-cpu-limit":      "500m", // Example: 500 millicores
+		"controller-memory-limit":   "256Mi", // Example: 256 MiB
+		"flow-collector-cpu":        "250m", // Example: 250 millicores
+		"flow-collector-memory":     "256Mi", // Example: 256 MiB
+		"flow-collector-cpu-limit":  "500m", // Example: 500 millicores
+		"flow-collector-memory-limit": "512Mi", // Example: 512 MiB
+		"prometheus-cpu":            "500m", // Example: 500 millicores
+		"prometheus-memory":         "512Mi", // Example: 512 MiB
+		"prometheus-cpu-limit":      "1", // Example: 1 core
+		"prometheus-memory-limit":   "1Gi", // Example: 1 GiB
+		"enable-skupper-events": "true",
+
 	}
+
+	
 
 	for _, namespace := range configMapNamespaces {
 		configMap := &corev1.ConfigMap{}
@@ -189,7 +214,9 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 				return reconcile.Result{}, err
 			}
 			logger.Info("Created ConfigMap", "name", configMapName, "namespace", namespace)
+			
 		} else {
+	
 			// Update the ConfigMap if necessary
 			if r.needsUpdateConfigMap(configMap, data) {
 				configMap.Data = data
@@ -206,6 +233,9 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	secretNamespace := link.Spec.Link.SecretNamespace
 	secretName := link.Spec.Link.SecretName
 	secret := &corev1.Secret{}
+
+	// Test log
+	logger.Info("Test log: Starting to manage secrets", "secretNamespace", secretNamespace, "secretName", secretName)
 
 	// Retrieve the Secret from the cluster
 	err = r.Get(ctx, client.ObjectKey{Name: secretName, Namespace: secretNamespace}, secret)
@@ -273,9 +303,41 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	targetCluster := link.Spec.Link.TargetCluster
 	sourceNamespace := link.Spec.Link.SourceNamespace
 	targetNamespaces := link.Spec.Link.TargetNamespace
+	appNames := link.Spec.Link.Applications
 	secretName2 := link.Spec.Link.SecretName2
-	
+
+	//list all deployments in sk1
+	deployments := &appsv1.DeploymentList{}
+	err = r.List(ctx, deployments, client.InNamespace(sourceNamespace))
+	if err != nil {
+		logger.Error(err, "Failed to list deployments in sk1 namespace")
+		return reconcile.Result{}, err
+	}
+	//iterate through deployments and add skupper annotation to deployments with the name that matches the app name in the crd
+	for _, deployment := range deployments.Items {
+		logger.Info("Checking deployment", "deploymentName", deployment.Name)
+		// check app name in app names
+		for _, appName := range appNames {
+			//log deployment and app name
+			logger.Info("Checking app name", "appName", appName, "deployment", deployment.Name)
+
+			if deployment.Name == appName {
+				if deployment.Annotations == nil {
+					deployment.Annotations = map[string]string{}
+				}
+				deployment.Annotations["skupper.io/proxy"] = "tcp"
+				err = r.Update(ctx, &deployment)
+				if err != nil {
+					logger.Error(err, "Failed to add skupper annotation to deployment")
+					return reconcile.Result{}, err
+				}
+				logger.Info("Added annotation to deployment", "deploymentName", deployment.Name)
+			}
+		}
+		
+	}
 	for _, targetNamespace := range targetNamespaces {
+		
 
 	
 
@@ -381,6 +443,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		}
 	}
 }
+
 
 	logger.Info("Reconcile loop completed successfully")
 	return reconcile.Result{}, nil
@@ -520,7 +583,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:166",
+									Image: "quay.io/ryjenkin/ac3no3:175",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",

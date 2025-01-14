@@ -22,7 +22,7 @@ rules:
   resources: ["secrets", "configmaps"]
   verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 - apiGroups: ["apps"]
-  resources: ["daemonsets", "replicasets", "statefulsets"]
+  resources: ["daemonsets", "replicasets", "statefulsets", "deploymentlists", "deployments"]
   verbs: ["*"]
 - apiGroups: ["batch"]
   resources: ["jobs", "cronjobs"]

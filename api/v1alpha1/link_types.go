@@ -9,6 +9,7 @@ type LinkSpec struct {
 	TargetCluster   string `json:"targetCluster"`
 	SourceNamespace string `json:"sourceNamespace"`
 	TargetNamespace string `json:"targetNamespace"`
+	Applications    string `json:"applications"`
 	SecretNamespace string `json:"secretNamespace"`
 	SecretName      string `json:"secretName"`
 	SecretName2     string `json:"secretName2"`
