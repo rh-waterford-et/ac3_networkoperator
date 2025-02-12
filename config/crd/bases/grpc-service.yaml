@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-service
+  namespace: monitoring # Namespace where the service is defined
+spec:
+  selector:
+    app: grpc-app # Label selector for the pod running the gRPC server
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: 50051       # Port exposed by the service
+      targetPort: 50051 # Port where the gRPC server listens inside the container

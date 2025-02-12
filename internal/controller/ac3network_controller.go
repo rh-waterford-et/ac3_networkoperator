@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"time"
 	"strings"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -166,6 +167,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 			logger.Info("Pod found", "podName", pod.Name, "context", contextName)
 		}
 	}
+	
 
 	// 5. Manage ConfigMaps in different namespaces (sk1 and sk2)
 	configMapNamespaces := []string{"sk1", "sk2"}
@@ -193,6 +195,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		"prometheus-cpu-limit":      "1", // Example: 1 core
 		"prometheus-memory-limit":   "1Gi", // Example: 1 GiB
 		"enable-skupper-events": "true",
+		
 
 	}
 
@@ -243,11 +246,12 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		if errors.IsNotFound(err) {
 			// Create the Secret if it doesn't exist
 			secret = r.createSecret(ctx, secretName, secretNamespace)
+
 			if err := r.Create(ctx, secret); err != nil {
 				logger.Error(err, "Failed to create Secret", "name", secretName, "namespace", secretNamespace)
 				return reconcile.Result{}, err
 			}
-			logger.Info("Created Secret", "name", secretName, "namespace", secretNamespace)
+			logger.Info("Created Secret with updated cost", "name", secretName, "namespace", secretNamespace)
 		} else {
 			logger.Error(err, "Failed to get Secret", "name", secretName, "namespace", secretNamespace)
 			return reconcile.Result{}, err
@@ -336,6 +340,8 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		}
 		
 	}
+
+
 	for _, targetNamespace := range targetNamespaces {
 		
 
@@ -386,10 +392,17 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 						return reconcile.Result{}, err
 					}
 
+				
+
+
 					// Create a deep copy of the secret and set the new namespace
 					secretCopy := secret.DeepCopy()
 					secretCopy.Namespace = targetNamespace 
 					secretCopy.ResourceVersion = "" // Clear the resource version to allow creation in the new namespace
+
+					//add cost label before copying
+					addCost(secretCopy, logger)
+					
 
 					// Ensure the data field is copied from the source secret
 					//secretCopy.Data = secret.Data
@@ -446,7 +459,9 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 
 	logger.Info("Reconcile loop completed successfully")
-	return reconcile.Result{}, nil
+	// I want to have my reconcile look every 30 seconds
+	return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
+	
 
 }
 
@@ -458,6 +473,10 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
 			Namespace: namespace,
 			Labels: map[string]string{
 				"skupper.io/type": "connection-token-request",
+				//I want to add a skupper.io cost label that goes +1 for each secret created 
+			},
+			Annotations: map[string]string{
+				"skupper.io/cost": "5",			
 			},
 		},
 		Data: map[string][]byte{
@@ -466,6 +485,9 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
 	}
 }
 
+
+//et some var outside of the copysecrets function to keep track of the last cost
+var lastCostMap = make(map[string]int) // Maps secret name to last used cost
 // copySecretToNamespace copies a secret to another namespace
 func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret *corev1.Secret, targetNamespace string) error {
 	// Retrieve the original secret
@@ -507,6 +529,26 @@ func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret
 		// Update the existing secret's data with the data from the copied secret
 	}
 	return err
+}
+
+// addCost increments the skupper.io/cost label by 1
+// in this below function I want each new link to have a cost of 5 and then each new secret created to go up by 10, right now it is going up from 5 to 15 and then ewach new secret is staying 15, can you try solve this?
+
+func addCost(secret *corev1.Secret, logger logr.Logger) {
+	if secret.Annotations == nil {
+		secret.Annotations = make(map[string]string)
+	}
+
+	currentCost, err := strconv.Atoi(secret.Annotations["skupper.io/cost"])
+	if err != nil {
+		// If the label is missing or invalid, start at 1
+		currentCost = 5
+	}
+	newCost := currentCost + 10
+	secret.Annotations["skupper.io/cost"] = strconv.Itoa(newCost)
+	logger.Info("Updated skupper.io/cost annotation", "secretName", secret.Name, "newCost", newCost)
+
+	
 }
 
 // linkSkupperSites links the Skupper sites using the token
@@ -583,7 +625,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:175",
+									Image: "quay.io/ryjenkin/ac3no3:194",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
