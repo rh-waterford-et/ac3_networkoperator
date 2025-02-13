@@ -261,8 +261,10 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	// Log the success of copying the sk1-token to the sk2 namespace
 	logger.Info("Secret sk1-token copied to namespace sk2 successfully")
 
+
+	var cost int = 5
 	// Copy the Secret to the sk2 namespace
-	err = r.copySecretToNamespace(ctx, secret, "sk2")
+	err = r.copySecretToNamespace(ctx, secret, "sk2", &cost)
 	if err != nil {
 		logger.Error(err, "Failed to copy Secret to sk2 namespace", "name", secretName)
 		return reconcile.Result{}, err
@@ -399,9 +401,8 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 					secretCopy := secret.DeepCopy()
 					secretCopy.Namespace = targetNamespace 
 					secretCopy.ResourceVersion = "" // Clear the resource version to allow creation in the new namespace
-
-					//add cost label before copying
-					addCost(secretCopy, logger)
+					cost += 5 
+					secretCopy.Annotations ["skupper.io/cost"] = strconv.Itoa(cost)
 					
 
 					// Ensure the data field is copied from the source secret
@@ -487,9 +488,12 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
 
 
 //et some var outside of the copysecrets function to keep track of the last cost
-var lastCostMap = make(map[string]int) // Maps secret name to last used cost
+//set before copy secret function
+//add it to copy secret
+//set an pointer to an int inside copysecret function
+//use the same int i
 // copySecretToNamespace copies a secret to another namespace
-func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret *corev1.Secret, targetNamespace string) error {
+func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret *corev1.Secret, targetNamespace string , cost *int) error {
 	// Retrieve the original secret
 	//sleep for 15 seconds
 	logger := log.FromContext(ctx)
@@ -520,6 +524,12 @@ func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret
 		// Update the existing secret's data
 		existingSecret.Data = secretCopy.Data
 
+		//set annotation
+		if cost == nil {
+			*cost += 10
+		}
+		
+		secretCopy.Annotations["skupper.io/cost"] = strconv.Itoa(*cost)
 		// Retrieve the existing secret from the target namespace
 		// Update the existing secret in the target namespace
 		err = r.Update(ctx, existingSecret)
@@ -534,22 +544,6 @@ func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret
 // addCost increments the skupper.io/cost label by 1
 // in this below function I want each new link to have a cost of 5 and then each new secret created to go up by 10, right now it is going up from 5 to 15 and then ewach new secret is staying 15, can you try solve this?
 
-func addCost(secret *corev1.Secret, logger logr.Logger) {
-	if secret.Annotations == nil {
-		secret.Annotations = make(map[string]string)
-	}
-
-	currentCost, err := strconv.Atoi(secret.Annotations["skupper.io/cost"])
-	if err != nil {
-		// If the label is missing or invalid, start at 1
-		currentCost = 5
-	}
-	newCost := currentCost + 10
-	secret.Annotations["skupper.io/cost"] = strconv.Itoa(newCost)
-	logger.Info("Updated skupper.io/cost annotation", "secretName", secret.Name, "newCost", newCost)
-
-	
-}
 
 // linkSkupperSites links the Skupper sites using the token
 func (r *AC3NetworkReconciler) linkSkupperSites(ctx context.Context, targetNamespace string, secret *corev1.Secret) error {
@@ -625,7 +619,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:194",
+									Image: "quay.io/ryjenkin/ac3no3:207",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
