@@ -180,7 +180,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		"console-password": "password",
 		"router-cpu":                "500m", // Example: 500 millicores
 		"router-memory":             "256Mi", // Example: 256 MiB
-		"router-cpu-limit":          "1", // Example: 1 core
+		"router-cpu-limit":          "5", // Example: 1 core
 		"router-memory-limit":       "512Mi", // Example: 512 MiB
 		"controller-cpu":            "250m", // Example: 250 millicores
 		"controller-memory":         "128Mi", // Example: 128 MiB

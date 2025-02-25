@@ -14,8 +14,9 @@ spec:
       - "sk5"
     applications:
       - "nginx"
+      - "rabbitmq"
     secretNamespace: "sk1"
     secretName: "sk1-token"
     secretName2: "sk1-token"
-    port: 56733
+    port: 5672
     
