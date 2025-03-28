@@ -14,17 +14,17 @@ spec:
     spec:
       containers:
       - name: ac3-network-controller
-        image: quay.io/ryjenkin/ac3no3:208  # Replace with your actual image
+        image: quay.io/ryjenkin/ac3no3:224  # Replace with your actual image
         imagePullPolicy: Always
         ports:
         - containerPort: 8080  # Example port, change as necessary
         resources:
           requests:
             memory: "64Mi"
-            cpu: "250m"
+            cpu: "2"
           limits:
-            memory: "128Mi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "2"
       serviceAccountName: controller-manager # If your controller requires specific permissions
 
       

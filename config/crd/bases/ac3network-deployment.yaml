@@ -10,8 +10,6 @@ spec:
     sourceNamespace: "sk1"
     targetNamespace: 
       - "sk3"
-      - "sk4"
-      - "sk5"
     applications:
       - "nginx"
       - "rabbitmq"

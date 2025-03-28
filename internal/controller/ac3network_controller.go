@@ -122,6 +122,9 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		logger.Error(err, "Failed to get ConfigMap", "name", "ac3-combined-kubeconfig", "namespace", "sk1")
 		return reconcile.Result{}, err
 	}
+	//test log here say HERE
+	logger.Info("HERE")
+	
 
 	// 2. Extract kubeconfig content
 	kubeconfigContent, ok := configMap.Data["kubeconfig"]
@@ -178,7 +181,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		"flow-collector":   "true",
 		"console-user":     "username",
 		"console-password": "password",
-		"router-cpu":                "500m", // Example: 500 millicores
+		"router-cpu":                "2", // Example: 500 millicores
 		"router-memory":             "256Mi", // Example: 256 MiB
 		"router-cpu-limit":          "5", // Example: 1 core
 		"router-memory-limit":       "512Mi", // Example: 512 MiB
@@ -246,6 +249,8 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		if errors.IsNotFound(err) {
 			// Create the Secret if it doesn't exist
 			secret = r.createSecret(ctx, secretName, secretNamespace)
+			//test log HERE
+			logger.Info("HERE")
 
 			if err := r.Create(ctx, secret); err != nil {
 				logger.Error(err, "Failed to create Secret", "name", secretName, "namespace", secretNamespace)
@@ -619,7 +624,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:207",
+									Image: "quay.io/ryjenkin/ac3no3:224",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
