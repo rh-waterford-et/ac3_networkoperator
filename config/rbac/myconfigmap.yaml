@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac3-combined-kubeconfig
+  namespace: sk1
+data:
+  kubeconfig: |
+    apiVersion: v1
+    clusters:
+    - cluster:
+        insecure-skip-tls-verify: true
+        server: https://api.ac3-cluster-1.rh-horizon.eu:6443
+      name: ac3-cluster-1
+    - cluster:
+        insecure-skip-tls-verify: true
+        server: https://api.ac3-cluster-2.rh-horizon.eu:6443
+      name: ac3-cluster-2
+    contexts:
+    - context:
+        cluster: ac3-cluster-1
+        namespace: default
+        user: ac3-cluster-1
+      name: ac3-cluster-1
+    - context:
+        cluster: ac3-cluster-2
+        namespace: sk1
+        user: ac3-cluster-2
+      name: ac3-cluster-2
+    current-context: ac3-cluster-2
+    kind: Config
+    preferences: {}
+    users:
+    - name: ac3-cluster-1
+      user:
+        token: eyJhbGciOiJSUzI1NiIsImtpZCI6IlJqZllQbnhqU0JDYk9seU9BekpxN29LTkdvS3dzaTlUdmxDZzItc0lqSXMifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImNvbnRyb2xsZXItbWFuYWdlci10b2tlbi04OTlyZyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJjb250cm9sbGVyLW1hbmFnZXIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiI2MDU4ZWI4MC1hOTllLTQxYjktOWQ1Yi0xMGQwZTE2NjI5ODkiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpjb250cm9sbGVyLW1hbmFnZXIifQ.L4HtjugsZ2EvDNLa2TQb65sgPbczxgyEp4ce7gKd0yCNrvNNYs0ML-sXZVdZBGeATbhkfF38uZYhyw8NYkLPwNhLR1nvwBM8fXg6fUvPYZpM4PMr_iXb-U7rmGyjd11ByJA2JjX56BHuR4_IlWZB4KM0a42s-tOaeqFRGQ_NYpOtT1gZJoJ5GHvhjRZJE6rvyq3XuTREvNqEbBLqAk-b9jd1Do50cv1XMLjyJpCiKyXE7_WZ6A5f-R8bTAselxtNOkPUll_LMHilkx2Km8lLgI4WuzTZl_9dknOS5Ae34DW3Q7qDJCVovYZlnaOb7U71bChkDadu--B_bKS0rB6E3ET4LeT4wufKJyL53Q-ve1udHzg6PJvqd3yhdOK8qKksxJ-7qsLSzJTub4PO8arNKmnhRlKqOElH8TplbDF3ieqBP4LXoBX-1t-6NkFzeBssn1hJBDLUDI9Zaamspi_jCFBBonarR4OjFPYnvOF8foL1UQzkBtTYzmH42lh_tRfNGqf-VQqQpK4YWRi9RN_nCZTtO4BIW-PJXjUJmZYe7ZQ5OPj7W7VSbQCR5cvf0qhRNbRfwzxqVU9gNLx7CkIAF5pXj2z3bZMyxJ01BQCYBLs8UuqVwMHkYBLJ1-PvbT5irPvoI22EQlbP_Uam0tttca6aTkc3yWSZpI8nLWfc7Ew
+    - name: ac3-cluster-2
+      user:
+        token: eyJhbGciOiJSUzI1NiIsImtpZCI6Imt3LVRVYlFRRWduWlFqbkZGMXZoSzBHaVkwMURpWDdfRkZNemtDSGI3d0EifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJzazEiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlY3JldC5uYW1lIjoiY29udHJvbGxlci1tYW5hZ2VyLXRva2VuLXg1Y2g2Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6ImNvbnRyb2xsZXItbWFuYWdlciIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjU4ZWY0YWMzLTQ1ZTctNGM2Ni1iNzJmLWZiZTI3MzZmMDg5MSIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDpzazE6Y29udHJvbGxlci1tYW5hZ2VyIn0.bmx19Cpc9f6z3r9SeYurB-F15jo6WcXfOZg17GNFp3kSArJFw3Jvmt6lnC6WfeOEgo_HYBdHZOr9zpw5rEHRgKvRKAPWJ7RgTE5G50xGNoZ7wedksM-Jzp2R1PF69KtW-vKPmmBagpSeARpHRY8CDIPuEl78nAjxscqYxm41PHYrvOW_gGplpof6LM10cqVYqWiPLlFYftMvZI20ueDAqw65LG8tLRzPPXgWb6JIkMOqpSv7jM3-EIMmSQfFHZy3szYfzbD1nmCL6ObliVjHWo5mWJ-GsFe1BZpGV4UZKBEX-hGeJUOJCHINH_8WWuBlIoUtq-zzjngC09-6HDnavuyv8LVsreRogr7MjYJTmhTYK8_HKZ83n4NaiOwdff7Zdf6lRbRF2AAPw9q3jUn_OxegbBns7s-hmBOWIYw94P8QHypj4UtzeqJfMgGb88ZeNDlTcTfj-bJgWMebs9ewIZW53TK9PMo8Tqaroh_sfDzjOhTK0cmUph3rC_cFiFg818LytHzkTwjyXom8YNB3PRXfHeGzpflBG0DisAQkqECdhmv8J4DDLPuQgSdnXlqsUT8IEuexk7401QMd9ja5YLGWYL-sTSwdz4YU25Mh3gfuO1V7k1O5qZ2FRuHvaogrPsmgu31NdcFAZuuj8ipA-4eJca0WHp7lCT3wGPB-bs0

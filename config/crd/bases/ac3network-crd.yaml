@@ -1,0 +1,16 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ac3networks.ac3.redhat.com
+spec:
+  group: ac3.redhat.com
+  names:
+    kind: AC3Network
+    listKind: AC3NetworkList
+    plural: ac3networks
+    singular: ac3network
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true

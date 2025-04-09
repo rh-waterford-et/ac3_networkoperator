@@ -1,0 +1,21 @@
+apiVersion: ac3.redhat.com/v1alpha1
+kind: AC3Network
+metadata:
+  name: ray-ac3network
+  namespace: ac3no
+spec:
+  link:
+    sourceCluster: "ac3-cluster-2"
+    targetCluster: "ac3-cluster-1"
+    sourceNamespace: "sk1"
+    targetNamespace: 
+      - "sk3"
+      - "sk4"
+    applications:
+      - "nginx"
+      - "rabbitmq"
+    secretNamespace: "sk1"
+    secretName: "sk1-token"
+    secretName2: "sk1-token"
+    port: 5672
+    

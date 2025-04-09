@@ -1,0 +1,12 @@
+apiVersion: ac3.redhat.com/v1alpha1
+kind: AC3Network
+metadata:
+  labels:
+    app.kubernetes.io/name: ac3network
+    app.kubernetes.io/instance: ac3network-sample
+    app.kubernetes.io/part-of: ac3no
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: ac3no
+  name: ac3network-sample
+spec:
+  # TODO(user): Add fields here

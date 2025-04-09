@@ -1,0 +1,14 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: grpc-route
+  namespace: monitoring # Namespace where the route is created
+spec:
+  host: grpc-app.example.com # Replace with the desired hostname
+  to:
+    kind: Service
+    name: grpc-service # Reference to the service
+  port:
+    targetPort: grpc # Matches the service port name
+  tls:
+    termination: passthrough # Required for HTTP/2 and gRPC
