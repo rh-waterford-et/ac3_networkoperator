@@ -32,7 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	ac3v1alpha1 "github.com/raycarroll/ac3no/api/v1alpha1"
+	ac3v1alpha1 "github.com/rh-waterford-et/ac3_networkoperator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 

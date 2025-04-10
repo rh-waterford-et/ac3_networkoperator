@@ -24,15 +24,15 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type AC3Link struct {
-	SourceCluster   string `json:"sourceCluster"`
-	TargetCluster   string `json:"targetCluster"`
-	SourceNamespace string `json:"sourceNamespace"`
+	SourceCluster   string   `json:"sourceCluster"`
+	TargetCluster   string   `json:"targetCluster"`
+	SourceNamespace string   `json:"sourceNamespace"`
 	TargetNamespace []string `json:"targetNamespace"`
 	Applications    []string `json:"applications"`
-	SecretNamespace string `json:"secretNamespace"`
-	SecretName      string `json:"secretName"`
-	SecretName2     string `json:"secretName2"`
-	Port            int    `json:"port"`
+	SecretNamespace string   `json:"secretNamespace"`
+	SecretName      string   `json:"secretName"`
+	SecretName2     string   `json:"secretName2"`
+	Port            int      `json:"port"`
 }
 
 // AC3NetworkSpec defines the desired state of AC3Network
