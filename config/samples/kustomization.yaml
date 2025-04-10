@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- ac3_v1alpha1_ac3network.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

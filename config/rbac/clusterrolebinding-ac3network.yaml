@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ac3network-rolebinding
+roleRef:
+  kind: ClusterRole
+  name: ac3network-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: controller-manager
+  namespace: sk2
+- kind: ServiceAccount
+  name: controller-manager
+  namespace: sk1
+
