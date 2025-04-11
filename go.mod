@@ -1,4 +1,4 @@
-module github.com/raycarroll/ac3no
+module github.com/rh-waterford-et/ac3_networkoperator
 
 go 1.20
 
@@ -9,7 +9,6 @@ require (
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.3
 	sigs.k8s.io/controller-runtime v0.16.3
-
 )
 
 require (

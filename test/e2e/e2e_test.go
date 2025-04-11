@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/raycarroll/ac3no/test/utils"
+	"github.com/rh-waterford-et/ac3_networkoperator/test/utils"
 )
 
 const namespace = "ac3no-system"

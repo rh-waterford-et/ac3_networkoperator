@@ -34,8 +34,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	ac3v1alpha1 "github.com/raycarroll/ac3no/api/v1alpha1"
-	"github.com/raycarroll/ac3no/internal/controller"
+	ac3v1alpha1 "github.com/rh-waterford-et/ac3_networkoperator/api/v1alpha1"
+	"github.com/rh-waterford-et/ac3_networkoperator/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -46,7 +46,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(ac3v1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }

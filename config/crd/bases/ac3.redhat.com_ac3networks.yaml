@@ -43,6 +43,10 @@ spec:
                 description: Foo is an example field of AC3Network. Edit ac3network_types.go
                   to remove/update
                 properties:
+                  applications:
+                    items:
+                      type: string
+                    type: array
                   port:
                     type: integer
                   secretName:
@@ -58,14 +62,11 @@ spec:
                   targetCluster:
                     type: string
                   targetNamespace:
-                    type: array
                     items:
                       type: string
-                  applications:
                     type: array
-                    items:
-                      type: string
                 required:
+                - applications
                 - port
                 - secretName
                 - secretName2
@@ -74,7 +75,6 @@ spec:
                 - sourceNamespace
                 - targetCluster
                 - targetNamespace
-                - applications
                 type: object
             type: object
           status:

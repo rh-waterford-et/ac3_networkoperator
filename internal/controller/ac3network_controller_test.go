@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ac3v1alpha1 "github.com/raycarroll/ac3no/api/v1alpha1"
+	ac3v1alpha1 "github.com/rh-waterford-et/ac3_networkoperator/api/v1alpha1"
 )
 
 var _ = Describe("AC3Network Controller", func() {
