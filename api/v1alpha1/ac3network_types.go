@@ -27,11 +27,9 @@ type AC3Link struct {
 	SourceCluster   string   `json:"sourceCluster"`
 	TargetCluster   string   `json:"targetCluster"`
 	SourceNamespace string   `json:"sourceNamespace"`
-	TargetNamespace []string `json:"targetNamespace"`
+	TargetNamespace string `json:"targetNamespace"`
 	Applications    []string `json:"applications"`
-	SecretNamespace string   `json:"secretNamespace"`
-	SecretName      string   `json:"secretName"`
-	SecretName2     string   `json:"secretName2"`
+	Services		[]string `json:"services"`
 	Port            int      `json:"port"`
 }
 
@@ -41,7 +39,7 @@ type AC3NetworkSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of AC3Network. Edit ac3network_types.go to remove/update
-	Link AC3Link `json:"link,omitempty"`
+	Links [] AC3Link `json:"link,omitempty"`
 }
 
 // AC3NetworkStatus defines the observed state of AC3Network
