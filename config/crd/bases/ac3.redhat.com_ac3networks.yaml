@@ -42,40 +42,36 @@ spec:
               link:
                 description: Foo is an example field of AC3Network. Edit ac3network_types.go
                   to remove/update
-                properties:
-                  applications:
-                    items:
+                items:
+                  properties:
+                    applications:
+                      items:
+                        type: string
+                      type: array
+                    port:
+                      type: integer
+                    services:
+                      items:
+                        type: string
+                      type: array
+                    sourceCluster:
                       type: string
-                    type: array
-                  port:
-                    type: integer
-                  secretName:
-                    type: string
-                  secretName2:
-                    type: string
-                  secretNamespace:
-                    type: string
-                  sourceCluster:
-                    type: string
-                  sourceNamespace:
-                    type: string
-                  targetCluster:
-                    type: string
-                  targetNamespace:
-                    items:
+                    sourceNamespace:
                       type: string
-                    type: array
-                required:
-                - applications
-                - port
-                - secretName
-                - secretName2
-                - secretNamespace
-                - sourceCluster
-                - sourceNamespace
-                - targetCluster
-                - targetNamespace
-                type: object
+                    targetCluster:
+                      type: string
+                    targetNamespace:
+                      type: string
+                  required:
+                  - applications
+                  - port
+                  - services
+                  - sourceCluster
+                  - sourceNamespace
+                  - targetCluster
+                  - targetNamespace
+                  type: object
+                type: array
             type: object
           status:
             description: AC3NetworkStatus defines the observed state of AC3Network
