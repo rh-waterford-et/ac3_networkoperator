@@ -53,6 +53,10 @@ type ApplicationSpec struct {
 	Name string `json:"name"`
 	// Port int    `json:"port"`
 }
+type ServiceSpec struct {
+	Name string `json:"name"`
+	// Port int    `json:"port"`
+}
 
 func (in *SkupperRouter) DeepCopyObject() runtime.Object {
 	out := SkupperRouter{
@@ -113,18 +117,16 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 	// logger.Info("Fetching Link resource", "namespace", link.Namespace, "name", link.Name)
 
-	logger.Info("CR Detail", "SourceCluster", link.Spec.Link.SourceCluster)
+	logger.Info("CR Detail", "SourceCluster", link.Spec.Links.SourceCluster)
 	logger.Info("CR Detail", "SourceCluster", link.Spec)
 
 	// 1. Fetch the ConfigMap with the combined kubeconfig
 	configMap := &corev1.ConfigMap{}
-	err := r.Get(ctx, client.ObjectKey{Name: "ac3-combined-kubeconfig", Namespace: "sk1"}, configMap)
+	err := r.Get(ctx, client.ObjectKey{Name: "ac3-combined-kubeconfig", Namespace: "ac3no-system"}, configMap)
 	if err != nil {
-		logger.Error(err, "Failed to get ConfigMap", "name", "ac3-combined-kubeconfig", "namespace", "sk1")
+		logger.Error(err, "Failed to get ConfigMap", "name", "ac3-combined-kubeconfig", "namespace", "ac3no-system")
 		return reconcile.Result{}, err
 	}
-	//test log here say HERE
-	logger.Info("HERE")
 
 	// 2. Extract kubeconfig content
 	kubeconfigContent, ok := configMap.Data["kubeconfig"]
@@ -141,98 +143,78 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, err
 	}
 
-	// 4. Iterate through contexts and interact with clusters
-	for contextName, _ := range kubeconfig.Contexts {
-		logger.Info("Switching context", "context", contextName)
-
-		// Create a REST config for the cluster
-		config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
-		if err != nil {
-			logger.Error(err, "Failed to create Kubernetes client config", "context", contextName)
-			continue
-		}
-
-		clientset, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			logger.Error(err, "Failed to create Kubernetes clientset", "context", contextName)
-			continue
-		}
-
-		// Example: List all pods in the default namespace of the current context
-		pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
-		if err != nil {
-			logger.Error(err, "Failed to list pods in default namespace", "context", contextName)
-			continue
-		}
-
-		// Log pod names
-		for _, pod := range pods.Items {
-			logger.Info("Pod found", "podName", pod.Name, "context", contextName)
-		}
-	}
-
 	// 5. Manage ConfigMaps in different namespaces (sk1 and sk2)
-	configMapNamespaces := []string{"sk1", "sk2"}
-	configMapName := "skupper-site"
-	data := map[string]string{
-		"example.key":                 "example.value",
-		"console":                     "true",
-		"flow-collector":              "true",
-		"console-user":                "username",
-		"console-password":            "password",
-		"router-cpu":                  "2",     // Example: 500 millicores
-		"router-memory":               "256Mi", // Example: 256 MiB
-		"router-cpu-limit":            "5",     // Example: 1 core
-		"router-memory-limit":         "512Mi", // Example: 512 MiB
-		"controller-cpu":              "250m",  // Example: 250 millicores
-		"controller-memory":           "128Mi", // Example: 128 MiB
-		"controller-cpu-limit":        "500m",  // Example: 500 millicores
-		"controller-memory-limit":     "256Mi", // Example: 256 MiB
-		"flow-collector-cpu":          "250m",  // Example: 250 millicores
-		"flow-collector-memory":       "256Mi", // Example: 256 MiB
-		"flow-collector-cpu-limit":    "500m",  // Example: 500 millicores
-		"flow-collector-memory-limit": "512Mi", // Example: 512 MiB
-		"prometheus-cpu":              "500m",  // Example: 500 millicores
-		"prometheus-memory":           "512Mi", // Example: 512 MiB
-		"prometheus-cpu-limit":        "1",     // Example: 1 core
-		"prometheus-memory-limit":     "1Gi",   // Example: 1 GiB
-		"enable-skupper-events":       "true",
+	//put in a for loop and putit in a get to retrieve the ac3network
+	ac3Network := &ac3v1alpha1.AC3Network{}
+	if err := r.Get(ctx, req.NamespacedName, ac3Network); err != nil {
+		logger.Error(err, "Failed to fetch AC3Network")
+		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
+	//make a for loop for each link
+	//retrieving CRD and going through each link
+	for _, link := range ac3Network.Spec.Links {
+		configMapNamespaces := []string{link.SourceNamespace, link.TargetNamespace}
+		configMapName := "skupper-site"
+		data := map[string]string{
+			"example.key":                 "example.value",
+			"console":                     "true",
+			"flow-collector":              "true",
+			"console-user":                "username",
+			"console-password":            "password",
+			"router-cpu":                  "2",     // Example: 2 cores
+			"router-memory":               "256Mi", // Example: 256 MiB
+			"router-cpu-limit":            "5",     // Example: 1 core
+			"router-memory-limit":         "512Mi", // Example: 512 MiB
+			"controller-cpu":              "250m",  // Example: 250 millicores
+			"controller-memory":           "128Mi", // Example: 128 MiB
+			"controller-cpu-limit":        "500m",  // Example: 500 millicores
+			"controller-memory-limit":     "256Mi", // Example: 256 MiB
+			"flow-collector-cpu":          "250m",  // Example: 250 millicores
+			"flow-collector-memory":       "256Mi", // Example: 256 MiB
+			"flow-collector-cpu-limit":    "500m",  // Example: 500 millicores
+			"flow-collector-memory-limit": "512Mi", // Example: 512 MiB
+			"prometheus-cpu":              "500m",  // Example: 500 millicores
+			"prometheus-memory":           "512Mi", // Example: 512 MiB
+			"prometheus-cpu-limit":        "1",     // Example: 1 core
+			"prometheus-memory-limit":     "1Gi",   // Example: 1 GiB
+			"enable-skupper-events":       "true",
+		}
 
-	for _, namespace := range configMapNamespaces {
-		configMap := &corev1.ConfigMap{}
-		err := r.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
-		if err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				logger.Error(err, "Failed to get ConfigMap", "name", configMapName, "namespace", namespace)
-				return reconcile.Result{}, err
-			}
-
-			// Create the ConfigMap if it doesn't exist
-			configMap = r.createConfigMap(ctx, configMapName, namespace, data)
-			if err := r.Create(ctx, configMap); err != nil {
-				logger.Error(err, "Failed to create ConfigMap", "name", configMapName, "namespace", namespace)
-				return reconcile.Result{}, err
-			}
-			logger.Info("Created ConfigMap", "name", configMapName, "namespace", namespace)
-
-		} else {
-
-			// Update the ConfigMap if necessary
-			if r.needsUpdateConfigMap(configMap, data) {
-				configMap.Data = data
-				if err := r.Update(ctx, configMap); err != nil {
-					logger.Error(err, "Failed to update ConfigMap", "name", configMapName, "namespace", namespace)
+		for _, namespace := range configMapNamespaces {
+			configMap := &corev1.ConfigMap{}
+			err := r.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
+			if err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					logger.Error(err, "Failed to get ConfigMap", "name", configMapName, "namespace", namespace)
 					return reconcile.Result{}, err
 				}
-				logger.Info("Updated ConfigMap", "name", configMapName, "namespace", namespace)
+
+				// Create the ConfigMap if it doesn't exist
+				configMap = r.createConfigMap(ctx, configMapName, namespace, data)
+				if err := r.Create(ctx, configMap); err != nil {
+					logger.Error(err, "Failed to create ConfigMap", "name", configMapName, "namespace", namespace)
+					return reconcile.Result{}, err
+				}
+				logger.Info("Created ConfigMap", "name", configMapName, "namespace", namespace)
+
+			} else {
+
+				// Update the ConfigMap if necessary
+				if r.needsUpdateConfigMap(configMap, data) {
+					configMap.Data = data
+					if err := r.Update(ctx, configMap); err != nil {
+						logger.Error(err, "Failed to update ConfigMap", "name", configMapName, "namespace", namespace)
+						return reconcile.Result{}, err
+					}
+					logger.Info("Updated ConfigMap", "name", configMapName, "namespace", namespace)
+				}
 			}
 		}
 	}
 
 	// 6. Manage Secrets between sk1 and sk2 namespaces
-	secretNamespace := link.Spec.Link.SecretNamespace
-	secretName := link.Spec.Link.SecretName
+	secretNamespace := link.Spec.Links.SecretNamespace
+	secretName := link.Spec.Links.SecretName
 	secret := &corev1.Secret{}
 
 	// Test log
@@ -244,8 +226,6 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		if errors.IsNotFound(err) {
 			// Create the Secret if it doesn't exist
 			secret = r.createSecret(ctx, secretName, secretNamespace)
-			//test log HERE
-			logger.Info("HERE")
 
 			if err := r.Create(ctx, secret); err != nil {
 				logger.Error(err, "Failed to create Secret", "name", secretName, "namespace", secretNamespace)
@@ -301,50 +281,31 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	//     }
 	// }
 
-	logger.Info("IM HERE")
-
 	// Target clusters and namespaces
-	sourceCluster := link.Spec.Link.SourceCluster
-	targetCluster := link.Spec.Link.TargetCluster
-	sourceNamespace := link.Spec.Link.SourceNamespace
-	targetNamespaces := link.Spec.Link.TargetNamespace
-	appNames := link.Spec.Link.Applications
-	secretName2 := link.Spec.Link.SecretName2
+	sourceCluster := link.Spec.Links.SourceCluster
+	targetCluster := link.Spec.Links.TargetCluster
+	sourceNamespace := link.Spec.Links.SourceNamespace
+	targetNamespaces := link.Spec.Links.TargetNamespace
+	appNames := link.Spec.Links.Applications
+	serviceNames := link.Spec.Links.Services
 
-	//list all deployments in sk1
-	deployments := &appsv1.DeploymentList{}
-	err = r.List(ctx, deployments, client.InNamespace(sourceNamespace))
+	// Call the function to update deployments with Skupper annotation
+	err = r.updateDeploymentsWithSkupperAnnotation(ctx, sourceNamespace, appNames, logger)
 	if err != nil {
-		logger.Error(err, "Failed to list deployments in sk1 namespace")
+		logger.Error(err, "Failed to update deployments with Skupper annotation")
 		return reconcile.Result{}, err
 	}
-	//iterate through deployments and add skupper annotation to deployments with the name that matches the app name in the crd
-	for _, deployment := range deployments.Items {
-		logger.Info("Checking deployment", "deploymentName", deployment.Name)
-		// check app name in app names
-		for _, appName := range appNames {
-			//log deployment and app name
-			logger.Info("Checking app name", "appName", appName, "deployment", deployment.Name)
 
-			if deployment.Name == appName {
-				if deployment.Annotations == nil {
-					deployment.Annotations = map[string]string{}
-				}
-				deployment.Annotations["skupper.io/proxy"] = "tcp"
-				err = r.Update(ctx, &deployment)
-				if err != nil {
-					logger.Error(err, "Failed to add skupper annotation to deployment")
-					return reconcile.Result{}, err
-				}
-				logger.Info("Added annotation to deployment", "deploymentName", deployment.Name)
-			}
-		}
-
+	// Call the function to update services with Skupper annotation
+	err = r.updateServicesWithSkupperAnnotation(ctx, sourceNamespace, serviceNames, logger)
+	if err != nil {
+		logger.Error(err, "Failed to update services with Skupper annotation")
+		return reconcile.Result{}, err
 	}
 
 	for _, targetNamespace := range targetNamespaces {
 
-		// Step 1: Switch to ac3-cluster-2 and get the secret from the sk1 namespace
+		// Step 1: Switch to ac3-cluster-2 and get the secret from the source namespace
 		for contextName, _ := range kubeconfig.Contexts {
 			if contextName == sourceCluster {
 				logger.Info("Switching context to ac3-cluster-2", "context", contextName)
@@ -362,10 +323,10 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 					return reconcile.Result{}, err
 				}
 
-				// Get the secret from sk1 namespace
+				// Get the secret from source namespace
 				secret, err := sourceClientset.CoreV1().Secrets(sourceNamespace).Get(ctx, secretName2, metav1.GetOptions{})
 				if err != nil {
-					logger.Error(err, "Failed to get secret from sk1 namespace in ac3-cluster-2", "secretName2", secretName2)
+					logger.Error(err, "Failed to get secret from source namespace in ac3-cluster-2", "secretName2", secretName2)
 					return reconcile.Result{}, err
 				}
 
@@ -529,37 +490,113 @@ func (r *AC3NetworkReconciler) copySecretToNamespace(ctx context.Context, secret
 	return err
 }
 
-// addCost increments the skupper.io/cost label by 1
-// in this below function I want each new link to have a cost of 5 and then each new secret created to go up by 10, right now it is going up from 5 to 15 and then ewach new secret is staying 15, can you try solve this?
-
-// linkSkupperSites links the Skupper sites using the token
-func (r *AC3NetworkReconciler) linkSkupperSites(ctx context.Context, targetNamespace string, secret *corev1.Secret) error {
-	// Create the Skupper link by applying the secret in the target namespace
-	secretToApply := secret.DeepCopy()
-	secretToApply.Namespace = targetNamespace
-
-	// Clear the ResourceVersion to ensure it's a new object creation
-	secretToApply.ResourceVersion = ""
-
-	err := r.Create(ctx, secretToApply)
-	if err != nil && errors.IsAlreadyExists(err) {
-		// If already exists, update it
-		existingSecret := &corev1.Secret{}
-		err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
-		if err != nil {
-			return err
-		}
-		existingSecret.Data = secretToApply.Data
-		err = r.Update(ctx, existingSecret)
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
+func (r *AC3NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.Context, sourceNamespace string, appNames []string, logger logr.Logger) error {
+	// List all deployments in the sourceNamespace
+	deployments := &appsv1.DeploymentList{}
+	err := r.List(ctx, deployments, client.InNamespace(sourceNamespace))
+	if err != nil {
+		logger.Error(err, "Failed to list deployments in source namespace", "namespace", sourceNamespace)
 		return err
+	}
+
+	// Iterate through deployments and add Skupper annotation to matching deployments
+	for _, deployment := range deployments.Items {
+		logger.Info("Checking deployment", "deploymentName", deployment.Name)
+
+		// Check if the deployment name matches any app name in the CRD
+		for _, appName := range appNames {
+			logger.Info("Checking app name", "appName", appName, "deployment", deployment.Name)
+
+			if deployment.Name == appName {
+				// Add or update the Skupper annotation
+				if deployment.Annotations == nil {
+					deployment.Annotations = map[string]string{}
+				}
+				deployment.Annotations["skupper.io/proxy"] = "tcp"
+
+				// Update the deployment
+				err = r.Update(ctx, &deployment)
+				if err != nil {
+					logger.Error(err, "Failed to update deployment with Skupper annotation", "deploymentName", deployment.Name)
+					return err
+				}
+				logger.Info("Updated deployment with Skupper annotation", "deploymentName", deployment.Name)
+			}
+		}
 	}
 
 	return nil
 }
+
+func (r *AC3NetworkReconciler) updateServicesWithSkupperAnnotation(ctx context.Context, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
+	// List all services in the sourceNamespace
+	servicesList := &corev1.ServiceList{}
+	err := r.List(ctx, servicesList, client.InNamespace(sourceNamespace))
+	if err != nil {
+		logger.Error(err, "Failed to list services in sourceNamespace", "namespace", sourceNamespace)
+		return err
+	}
+
+	// Iterate through the services defined in the CRD
+	for _, serviceName := range serviceNames {
+		logger.Info("Checking service", "serviceName", serviceName)
+
+		// Check if the service exists in the namespace
+		for _, service := range servicesList.Items {
+			if service.Name == serviceName {
+				logger.Info("Found matching service", "serviceName", service.Name)
+
+				// Add or update annotations for the service
+				if service.Annotations == nil {
+					service.Annotations = map[string]string{}
+				}
+				service.Annotations["skupper.io/target"] = "tcp"
+
+				// Update the service
+				err = r.Update(ctx, &service)
+				if err != nil {
+					logger.Error(err, "Failed to update service", "serviceName", service.Name)
+					return err
+				}
+				logger.Info("Updated service with annotation", "serviceName", service.Name)
+			}
+		}
+	}
+
+	return nil
+}
+
+// addCost increments the skupper.io/cost label by 1
+// in this below function I want each new link to have a cost of 5 and then each new secret created to go up by 10, right now it is going up from 5 to 15 and then ewach new secret is staying 15, can you try solve this?
+
+// linkSkupperSites links the Skupper sites using the token
+//func (r *AC3NetworkReconciler) linkSkupperSites(ctx context.Context, targetNamespace string, secret *corev1.Secret) error {
+//	// Create the Skupper link by applying the secret in the target namespace
+//	secretToApply := secret.DeepCopy()
+//	secretToApply.Namespace = targetNamespace
+//
+//	// Clear the ResourceVersion to ensure it's a new object creation
+//	secretToApply.ResourceVersion = ""
+//
+//	err := r.Create(ctx, secretToApply)
+//	if err != nil && errors.IsAlreadyExists(err) {
+//		// If already exists, update it
+//		existingSecret := &corev1.Secret{}
+//		err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
+//		if err != nil {
+//			return err
+//		}
+//		existingSecret.Data = secretToApply.Data
+//		err = r.Update(ctx, existingSecret)
+//		if err != nil {
+//			return err
+//		}
+//	} else if err != nil {
+//		return err
+//	}
+//
+//	return nil
+//}
 
 // logSkupperLinkStatus logs the status of the Skupper link for a given namespace
 func (r *AC3NetworkReconciler) logSkupperLinkStatus(ctx context.Context, namespace string) error {
