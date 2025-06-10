@@ -4,20 +4,15 @@ metadata:
   name: ray-ac3network
   namespace: ac3no
 spec:
-  link:
-    sourceCluster: "ac3-cluster-2"
-    targetCluster: "ac3-cluster-1"
-    sourceNamespace: "sk1"
-    targetNamespace: 
-      - "sk3"
-      - "sk4"
-    applications:
-      - "nginx"
-      - "rabbitmq"
-    services:
+  links:
+      - sourceCluster: "ac3-cluster-2"
+        targetCluster: "ac3-cluster-1"
+        sourceNamespace: "sk1"
+        targetNamespace: "sk3"
+        applications:
+          - "nginx"
+          - "rabbitmq"
+        services:
+          - "nginx"
+        port: 5672
 
-    secretNamespace: "sk1"
-    secretName: "sk1-token"
-    secretName2: "sk1-token"
-    port: 5672
-    

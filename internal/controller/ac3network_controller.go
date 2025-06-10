@@ -115,9 +115,6 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, err
 	}
 
-	// logger.Info("Fetching Link resource", "namespace", link.Namespace, "name", link.Name)
-
-	logger.Info("CR Detail", "SourceCluster", link.Spec.Links.SourceCluster)
 	logger.Info("CR Detail", "SourceCluster", link.Spec)
 
 	// 1. Fetch the ConfigMap with the combined kubeconfig
