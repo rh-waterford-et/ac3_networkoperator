@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	// "k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -102,11 +103,11 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	logger := log.FromContext(ctx)
 	logger.Info("Starting Reconcile loop", "request", req)
 	ctx = logr.NewContext(ctx, logger)
-	link := &ac3v1alpha1.AC3Network{}
+	linkCR := &ac3v1alpha1.AC3Network{}
 
 	logger.Info("Fetching Link resource", "namespace", req.Namespace, "name", req.Name)
 
-	if err := r.Client.Get(ctx, req.NamespacedName, link); err != nil {
+	if err := r.Client.Get(ctx, req.NamespacedName, linkCR); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Error(err, "Link resource not found, possibly deleted")
 			return reconcile.Result{}, nil
@@ -115,13 +116,13 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, err
 	}
 
-	logger.Info("CR Detail", "SourceCluster", link.Spec)
+	//logger.Info("CR Detail", "SourceCluster", link.Spec)
 
 	// 1. Fetch the ConfigMap with the combined kubeconfig
 	configMap := &corev1.ConfigMap{}
-	err := r.Get(ctx, client.ObjectKey{Name: "ac3-combined-kubeconfig", Namespace: "ac3no-system"}, configMap)
+	err := r.Get(ctx, client.ObjectKey{Name: "ac3-combined-kubeconfig", Namespace: "sk1"}, configMap)
 	if err != nil {
-		logger.Error(err, "Failed to get ConfigMap", "name", "ac3-combined-kubeconfig", "namespace", "ac3no-system")
+		logger.Error(err, "Failed to get ConfigMap", "name", "ac3-combined-kubeconfig", "namespace", "sk1")
 		return reconcile.Result{}, err
 	}
 
@@ -140,7 +141,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, err
 	}
 
-	// 5. Manage ConfigMaps in different namespaces (sk1 and sk2)
+	// 5. Manage ConfigMaps in different namespaces
 	//put in a for loop and putit in a get to retrieve the ac3network
 	ac3Network := &ac3v1alpha1.AC3Network{}
 	if err := r.Get(ctx, req.NamespacedName, ac3Network); err != nil {
@@ -149,7 +150,9 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	}
 	//make a for loop for each link
 	//retrieving CRD and going through each link
+	logger.Info("Expect Not Here")
 	for _, link := range ac3Network.Spec.Links {
+		logger.Info("Not Here")
 		configMapNamespaces := []string{link.SourceNamespace, link.TargetNamespace}
 		configMapName := "skupper-site"
 		data := map[string]string{
@@ -177,17 +180,15 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 			"enable-skupper-events":       "true",
 		}
 
-		////get secret from source
-		//// deep copy
-		////create on target
-		//
-		err = r.createUpdateSecret(ctx, link.SourceNamespace, link.TargetNamespace, pointer.Int(5))
+		err = r.createUpdateSecret(ctx, kubeconfig, link.SourceCluster, link.SourceNamespace, pointer.Int(5))
 		if err != nil {
 			logger.Error(err, "Failed to copy secret to namespace")
 			return reconcile.Result{}, err
 		}
 
+		logger.Info("HERE")
 		for _, namespace := range configMapNamespaces {
+			logger.Info("Creating namespace", "namespace", namespace)
 			configMap := &corev1.ConfigMap{}
 			err := r.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
 			if err != nil {
@@ -198,13 +199,17 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 				// Create the ConfigMap if it doesn't exist
 				configMap = r.createConfigMap(ctx, configMapName, namespace, data)
-				if err := r.Create(ctx, configMap); err != nil {
-					logger.Error(err, "Failed to create ConfigMap", "name", configMapName, "namespace", namespace)
-					return reconcile.Result{}, err
-				}
+				//if err := r.Create(ctx, configMap); err != nil {
+				//	logger.Info("HELLO")
+				//	logger.Error(err, "Failed to create ConfigMap", "name", configMapName, "namespace", namespace)
+				//	logger.Info("HELLO again")
+				//	return reconcile.Result{}, err
+				//}
 				logger.Info("Created ConfigMap", "name", configMapName, "namespace", namespace)
 
 			} else {
+				//log here
+				logger.Info("ConfigMap already exists", "name", configMapName, "namespace", namespace)
 
 				// Update the ConfigMap if necessary
 				if r.needsUpdateConfigMap(configMap, data) {
@@ -218,9 +223,6 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 			}
 		}
 
-		// Log the success of copying the sk1-token to the sk2 namespace
-		logger.Info("Secret sk1-token copied to namespace sk2 successfully")
-
 		//var cost int = 5
 		//// Copy the Secret to the sk2 namespace
 		//err = r.copySecretToNamespace(ctx, secret, "sk2", &cost)
@@ -228,8 +230,6 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		//	logger.Error(err, "Failed to copy Secret to sk2 namespace", "name", secretName)
 		//	return reconcile.Result{}, err
 		//}
-
-		logger.Info("Secret sk1-token copied to namespace sk2 successfully")
 
 		// 7. Log Skupper link status
 		// err = r.logSkupperLinkStatus(ctx, "sk2")
@@ -302,13 +302,13 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 				}
 
 				// Get the secret from source namespace
-				secret, err := sourceClientset.CoreV1().Secrets(sourceNamespace).Get(ctx, "Token", metav1.GetOptions{})
+				secret, err := sourceClientset.CoreV1().Secrets(sourceNamespace).Get(ctx, "token", metav1.GetOptions{})
 				if err != nil {
 					logger.Error(err, "Failed to get secret from source namespace in ac3-cluster-2", "namespace", sourceNamespace)
 					return reconcile.Result{}, err
 				}
 
-				logger.Info("Successfully retrieved sk1-token from ac3-cluster-2", "secretName2", secret)
+				logger.Info("Successfully retrieved token from ac3-cluster-2", "secretName2", secret)
 
 				// Step 2: Switch to ac3-cluster-1 and copy the secret to the default namespace
 				for targetContextName, _ := range kubeconfig.Contexts {
@@ -339,7 +339,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 						//secretCopy.Data = secret.Data
 
 						// Log the secret data to check that it's being copied correctly
-						logger.Info("Preparing to copy sk1-token to default namespace on ac3-cluster-1", "secretCopy", secretCopy)
+						logger.Info("Preparing to copy token to default namespace on ac3-cluster-1", "secretCopy", secretCopy)
 
 						// Create the secret in the namespace on ac3-cluster-1
 						_, err = targetClientset.CoreV1().Secrets(targetNamespace).Create(ctx, secretCopy, metav1.CreateOptions{})
@@ -353,7 +353,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 						}
 
 						// Log success and ensure secret contents are correct
-						logger.Info("Successfully copied sk1-token to default namespace on ac3-cluster-1",
+						logger.Info("Successfully copied token to default namespace on ac3-cluster-1",
 							"secretName2", secret.Name,
 							"targetNamespace", targetNamespace,
 							"data", secretCopy.Data)
@@ -420,73 +420,89 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
 // set an pointer to an int inside copysecret function
 // use the same int i
 // copySecretToNamespace copies a secret to another namespace
-func (r *AC3NetworkReconciler) createUpdateSecret(ctx context.Context, sourceNamespace, targetNamespace string, cost *int) error {
-	// Retrieve the original secret
-	//sleep for 15 seconds
+// createUpdateSecret creates the secret in the correct cluster context
+func (r *AC3NetworkReconciler) createUpdateSecret(ctx context.Context, kubeconfig *clientcmdapi.Config, clusterName, namespace string, cost *int) error {
 	logger := log.FromContext(ctx)
-	time.Sleep(15 * time.Second)
+	config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, clusterName, nil, nil).ClientConfig()
+	if err != nil {
+		logger.Error(err, "Failed to get client config for cluster", "cluster", clusterName)
+		return err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.Error(err, "Failed to create clientset for cluster", "cluster", clusterName)
+		return err
+	}
 
-	secret := &corev1.Secret{}
-
-	// Retrieve the Secret from the cluster
-	err := r.Get(ctx, client.ObjectKey{Name: "Token", Namespace: sourceNamespace}, secret)
+	// Try to get the secret
+	_, err = clientset.CoreV1().Secrets(namespace).Get(ctx, "token", metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Create the Secret if it doesn't exist
-			secret = r.createSecret(ctx, "Token", sourceNamespace)
-
-			if err := r.Create(ctx, secret); err != nil {
-				logger.Error(err, "Failed to create Secret", "name", "Token", "namespace", sourceNamespace)
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "token",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"skupper.io/type": "connection-token-request",
+					},
+					Annotations: map[string]string{
+						"skupper.io/cost": fmt.Sprintf("%d", *cost),
+					},
+				},
+				Data: map[string][]byte{
+					"connectionToken": []byte("some-token-data"),
+				},
+			}
+			_, err = clientset.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to create Secret", "name", "token", "namespace", namespace)
 				return err
 			}
-			logger.Info("Created Secret with updated cost", "name", "Token", "namespace", sourceNamespace)
+			logger.Info("Created Secret with updated cost", "name", "token", "namespace", namespace)
 		} else {
-			logger.Error(err, "Failed to get Secret", "name", "Token", "namespace", sourceNamespace)
+			logger.Error(err, "Failed to get Secret", "name", "token", "namespace", namespace)
 			return err
-
 		}
 	}
-	//sleep
-	time.Sleep(15 * time.Second)
-
-	////------------------------------
-	//// Create a deep copy of the secret
-	//secretCopy := secret.DeepCopy()
-	//// Set the target namespace
-	//secretCopy.ObjectMeta.Namespace = targetNamespace
-	//// Clear the ResourceVersion for the new object
-	//secretCopy.ObjectMeta.ResourceVersion = ""
-	//// Attempt to create the secret in the target namespace
-	////print out secret copy to log
-	//logger.Info("Secret copy", "secret", secretCopy)
-	//err = r.Create(ctx, secretCopy)
-	//if err != nil && errors.IsAlreadyExists(err) {
-	//	// If the secret already exists, update it
-	//	existingSecret := &corev1.Secret{}
-	//	err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	// Update the existing secret's data
-	//	existingSecret.Data = secretCopy.Data
-	//
-	//	//set annotation
-	//	if cost == nil {
-	//		*cost += 10
-	//	}
-	//
-	//	secretCopy.Annotations["skupper.io/cost"] = strconv.Itoa(*cost)
-	//	// Retrieve the existing secret from the target namespace
-	//	// Update the existing secret in the target namespace
-	//	err = r.Update(ctx, existingSecret)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	// Update the existing secret's data with the data from the copied secret
-	//}
-	return err
+	return nil
 }
+
+////------------------------------
+//// Create a deep copy of the secret
+//secretCopy := secret.DeepCopy()
+//// Set the target namespace
+//secretCopy.ObjectMeta.Namespace = targetNamespace
+//// Clear the ResourceVersion for the new object
+//secretCopy.ObjectMeta.ResourceVersion = ""
+//// Attempt to create the secret in the target namespace
+////print out secret copy to log
+//logger.Info("Secret copy", "secret", secretCopy)
+//err = r.Create(ctx, secretCopy)
+//if err != nil && errors.IsAlreadyExists(err) {
+//	// If the secret already exists, update it
+//	existingSecret := &corev1.Secret{}
+//	err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
+//	if err != nil {
+//		return err
+//	}
+//
+//	// Update the existing secret's data
+//	existingSecret.Data = secretCopy.Data
+//
+//	//set annotation
+//	if cost == nil {
+//		*cost += 10
+//	}
+//
+//	secretCopy.Annotations["skupper.io/cost"] = strconv.Itoa(*cost)
+//	// Retrieve the existing secret from the target namespace
+//	// Update the existing secret in the target namespace
+//	err = r.Update(ctx, existingSecret)
+//	if err != nil {
+//		return err
+//	}
+//	// Update the existing secret's data with the data from the copied secret
+//}
 
 func (r *AC3NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.Context, sourceNamespace string, appNames []string, logger logr.Logger) error {
 	// List all deployments in the sourceNamespace
@@ -503,7 +519,7 @@ func (r *AC3NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx contex
 
 		// Check if the deployment name matches any app name in the CRD
 		for _, appName := range appNames {
-			logger.Info("Checking app name", "appName", appName, "deployment", deployment.Name)
+			//logger.Info("Checking app name", "appName", appName, "deployment", deployment.Name)
 
 			if deployment.Name == appName {
 				// Add or update the Skupper annotation
@@ -528,6 +544,7 @@ func (r *AC3NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx contex
 
 func (r *AC3NetworkReconciler) updateServicesWithSkupperAnnotation(ctx context.Context, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
 	// List all services in the sourceNamespace
+	logger.Info("Entering updateServicesWithSkupperAnnotation", "namespace", sourceNamespace, "serviceNames", serviceNames)
 	servicesList := &corev1.ServiceList{}
 	err := r.List(ctx, servicesList, client.InNamespace(sourceNamespace))
 	if err != nil {
@@ -641,7 +658,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:224",
+									Image: "quay.io/ryjenkin/ac3no3:245",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",

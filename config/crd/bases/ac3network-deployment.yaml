@@ -13,6 +13,7 @@ spec:
           - "nginx"
           - "rabbitmq"
         services:
-          - "nginx"
+          - "nginx-service"
+
         port: 5672
 
