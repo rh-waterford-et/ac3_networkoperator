@@ -522,7 +522,7 @@ func (r *AC3NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx contex
 
 	// Iterate through deployments and add Skupper annotation to matching deployments
 	for _, deployment := range deployments.Items {
-		logger.Info("Checking deployment", "deploymentName", deployment.Name)
+		// logger.Info("Checking deployment", "deploymentName", deployment.Name)
 
 		// Check if the deployment name matches any app name in the CRD
 		for _, appName := range appNames {
@@ -665,7 +665,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:252",
+									Image: "quay.io/ryjenkin/ac3no3:253",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
