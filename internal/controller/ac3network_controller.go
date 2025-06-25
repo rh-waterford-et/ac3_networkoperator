@@ -3,10 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/pointer"
 	"os/exec"
 	"strings"
 	"time"
+
+	"k8s.io/utils/pointer"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -199,12 +200,10 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 				// Create the ConfigMap if it doesn't exist
 				configMap = r.createConfigMap(ctx, configMapName, namespace, data)
-				//if err := r.Create(ctx, configMap); err != nil {
-				//	logger.Info("HELLO")
-				//	logger.Error(err, "Failed to create ConfigMap", "name", configMapName, "namespace", namespace)
-				//	logger.Info("HELLO again")
-				//	return reconcile.Result{}, err
-				//}
+				if err := r.Create(ctx, configMap); err != nil {
+					// Continue with next namespace instead of returning
+					continue
+				}
 				logger.Info("Created ConfigMap", "name", configMapName, "namespace", namespace)
 
 			} else {
@@ -301,8 +300,16 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 					return reconcile.Result{}, err
 				}
 
-				// Get the secret from source namespace
-				secret, err := sourceClientset.CoreV1().Secrets(sourceNamespace).Get(ctx, "token", metav1.GetOptions{})
+				// Wait for Skupper to generate the real token
+				var secret *corev1.Secret
+				for i := 0; i < 30; i++ { // Wait up to 30 seconds
+					secret, err = sourceClientset.CoreV1().Secrets(sourceNamespace).Get(ctx, "token", metav1.GetOptions{})
+					if err == nil && secret.Labels["skupper.io/type"] == "connection-token" {
+						// Real token generated!
+						break
+					}
+					time.Sleep(1 * time.Second)
+				}
 				if err != nil {
 					logger.Error(err, "Failed to get secret from source namespace in ac3-cluster-2", "namespace", sourceNamespace)
 					return reconcile.Result{}, err
@@ -565,7 +572,7 @@ func (r *AC3NetworkReconciler) updateServicesWithSkupperAnnotation(ctx context.C
 				if service.Annotations == nil {
 					service.Annotations = map[string]string{}
 				}
-				service.Annotations["skupper.io/target"] = "tcp"
+				service.Annotations["skupper.io/proxy"] = service.Name
 
 				// Update the service
 				err = r.Update(ctx, &service)
@@ -658,7 +665,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:245",
+									Image: "quay.io/ryjenkin/ac3no3:252",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
