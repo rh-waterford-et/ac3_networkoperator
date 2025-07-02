@@ -34,7 +34,7 @@ import (
 )
 
 // AC3NetworkReconciler reconciles an AC3Network object
-type AC3NetworkReconciler struct {
+type NetworkReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -91,20 +91,20 @@ func (in *SkupperRouterList) GetObjectKind() schema.ObjectKind {
 	return &in.TypeMeta
 }
 
-// +kubebuilder:rbac:groups=ac3.redhat.com,resources=ac3networks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=ac3.redhat.com,resources=ac3networks/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=ac3.redhat.com,resources=ac3networks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=ac3.redhat.com,resources=multiclusternetworks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ac3.redhat.com,resources=multiclusternetworks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ac3.redhat.com,resources=multiclusternetworks/finalizers,verbs=update
 // +kubebuilder:rbac:groups=ac3.redhat.com,resources=skupperrouters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ac3.redhat.com,resources=skupperrouters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ac3.redhat.com,resources=skupperrouters/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=secrets;configmaps,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile reads that state of the cluster for a AC3Network object and makes changes based on the state read
-func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+// Reconcile reads that state of the cluster for a Network object and makes changes based on the state read
+func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Starting Reconcile loop", "request", req)
 	ctx = logr.NewContext(ctx, logger)
-	linkCR := &ac3v1alpha1.AC3Network{}
+	linkCR := &ac3v1alpha1.MultiClusterNetwork{}
 
 	logger.Info("Fetching Link resource", "namespace", req.Namespace, "name", req.Name)
 
@@ -121,9 +121,9 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 	// 1. Fetch the ConfigMap with the combined kubeconfig
 	configMap := &corev1.ConfigMap{}
-	err := r.Get(ctx, client.ObjectKey{Name: "ac3-combined-kubeconfig", Namespace: "sk1"}, configMap)
+	err := r.Get(ctx, client.ObjectKey{Name: "combined-kubeconfig", Namespace: "sk1"}, configMap)
 	if err != nil {
-		logger.Error(err, "Failed to get ConfigMap", "name", "ac3-combined-kubeconfig", "namespace", "sk1")
+		logger.Error(err, "Failed to get ConfigMap", "name", "combined-kubeconfig", "namespace", "sk1")
 		return reconcile.Result{}, err
 	}
 
@@ -131,7 +131,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	kubeconfigContent, ok := configMap.Data["kubeconfig"]
 	if !ok {
 		err := fmt.Errorf("kubeconfig not found")
-		logger.Error(err, "ConfigMap does not contain kubeconfig", "name", "ac3-combined-kubeconfig")
+		logger.Error(err, "ConfigMap does not contain kubeconfig", "name", "combined-kubeconfig")
 		return reconcile.Result{}, err
 	}
 
@@ -144,15 +144,15 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 	// 5. Manage ConfigMaps in different namespaces
 	//put in a for loop and putit in a get to retrieve the ac3network
-	ac3Network := &ac3v1alpha1.AC3Network{}
-	if err := r.Get(ctx, req.NamespacedName, ac3Network); err != nil {
-		logger.Error(err, "Failed to fetch AC3Network")
+	multiclusterNetwork := &ac3v1alpha1.MultiClusterNetwork{}
+	if err := r.Get(ctx, req.NamespacedName, multiclusterNetwork); err != nil {
+		logger.Error(err, "Failed to fetch MultiClusterNetwork")
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 	//make a for loop for each link
 	//retrieving CRD and going through each link
 	logger.Info("Expect Not Here")
-	for _, link := range ac3Network.Spec.Links {
+	for _, link := range multiclusterNetwork.Spec.Links {
 		logger.Info("Not Here")
 		configMapNamespaces := []string{link.SourceNamespace, link.TargetNamespace}
 		configMapName := "skupper-site"
@@ -282,21 +282,21 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 			return reconcile.Result{}, err
 		}
 
-		// Step 1: Switch to ac3-cluster-2 and get the secret from the source namespace
+		// Step 1: Switch to cluster-2 and get the secret from the source namespace
 		for contextName, _ := range kubeconfig.Contexts {
 			if contextName == sourceCluster {
-				logger.Info("Switching context to ac3-cluster-2", "context", contextName)
+				logger.Info("Switching context to cluster-2", "context", contextName)
 
-				// Get Kubernetes client for ac3-cluster-2
+				// Get Kubernetes client for cluster-2
 				sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, contextName, nil, nil).ClientConfig()
 				if err != nil {
-					logger.Error(err, "Failed to create Kubernetes client config for ac3-cluster-2", "context", contextName)
+					logger.Error(err, "Failed to create Kubernetes client config for cluster-2", "context", contextName)
 					return reconcile.Result{}, err
 				}
 
 				sourceClientset, err := kubernetes.NewForConfig(sourceConfig)
 				if err != nil {
-					logger.Error(err, "Failed to create Kubernetes clientset for ac3-cluster-2", "context", contextName)
+					logger.Error(err, "Failed to create Kubernetes clientset for cluster-2", "context", contextName)
 					return reconcile.Result{}, err
 				}
 
@@ -311,27 +311,27 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 					time.Sleep(1 * time.Second)
 				}
 				if err != nil {
-					logger.Error(err, "Failed to get secret from source namespace in ac3-cluster-2", "namespace", sourceNamespace)
+					logger.Error(err, "Failed to get secret from source namespace in cluster-2", "namespace", sourceNamespace)
 					return reconcile.Result{}, err
 				}
 
-				logger.Info("Successfully retrieved token from ac3-cluster-2", "secretName2", secret)
+				logger.Info("Successfully retrieved token from cluster-2", "secretName2", secret)
 
-				// Step 2: Switch to ac3-cluster-1 and copy the secret to the default namespace
+				// Step 2: Switch to cluster-1 and copy the secret to the default namespace
 				for targetContextName, _ := range kubeconfig.Contexts {
 					if targetContextName == targetCluster {
-						logger.Info("Switching context to ac3-cluster-1", "context", targetContextName)
+						logger.Info("Switching context to cluster-1", "context", targetContextName)
 
-						// Get Kubernetes client for ac3-cluster-1
+						// Get Kubernetes client for cluster-1
 						targetConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, targetContextName, nil, nil).ClientConfig()
 						if err != nil {
-							logger.Error(err, "Failed to create Kubernetes client config for ac3-cluster-1", "context", targetContextName)
+							logger.Error(err, "Failed to create Kubernetes client config for cluster-1", "context", targetContextName)
 							return reconcile.Result{}, err
 						}
 
 						targetClientset, err := kubernetes.NewForConfig(targetConfig)
 						if err != nil {
-							logger.Error(err, "Failed to create Kubernetes clientset for ac3-cluster-1", "context", targetContextName)
+							logger.Error(err, "Failed to create Kubernetes clientset for cluster-1", "context", targetContextName)
 							return reconcile.Result{}, err
 						}
 
@@ -346,26 +346,26 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 						//secretCopy.Data = secret.Data
 
 						// Log the secret data to check that it's being copied correctly
-						logger.Info("Preparing to copy token to default namespace on ac3-cluster-1", "secretCopy", secretCopy)
+						logger.Info("Preparing to copy token to default namespace on cluster-1", "secretCopy", secretCopy)
 
-						// Create the secret in the namespace on ac3-cluster-1
+						// Create the secret in the namespace on cluster-1
 						_, err = targetClientset.CoreV1().Secrets(targetNamespace).Create(ctx, secretCopy, metav1.CreateOptions{})
 						if err != nil {
 							if strings.Contains(err.Error(), "already exists") {
-								logger.Info("Secret already exists in default namespace on ac3-cluster-1", "secretName2", secret.Name)
+								logger.Info("Secret already exists in default namespace on cluster-1", "secretName2", secret.Name)
 								continue
 							}
-							logger.Error(err, "Failed to create secret in default namespace on ac3-cluster-1", "context", targetContextName)
+							logger.Error(err, "Failed to create secret in default namespace on cluster-1", "context", targetContextName)
 							return reconcile.Result{}, err
 						}
 
 						// Log success and ensure secret contents are correct
-						logger.Info("Successfully copied token to default namespace on ac3-cluster-1",
+						logger.Info("Successfully copied token to default namespace on cluster-1",
 							"secretName2", secret.Name,
 							"targetNamespace", targetNamespace,
 							"data", secretCopy.Data)
 
-						// Step to create a ConfigMap in the default namespace on ac3-cluster-1
+						// Step to create a ConfigMap in the default namespace on cluster-1
 						configMapData := map[string]string{
 							"example.key": "example.value",
 						}
@@ -378,14 +378,14 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 							Data: configMapData,
 						}
 
-						// Create the ConfigMap in the namespace on ac3-cluster-1
+						// Create the ConfigMap in the namespace on cluster-1
 						_, err = targetClientset.CoreV1().ConfigMaps(targetNamespace).Create(ctx, configMap, metav1.CreateOptions{})
 						if err != nil {
-							logger.Error(err, "Failed to create ConfigMap in default namespace on ac3-cluster-1", "context", targetContextName)
+							logger.Error(err, "Failed to create ConfigMap in default namespace on cluster-1", "context", targetContextName)
 							return reconcile.Result{}, err
 						}
 
-						logger.Info("Successfully created ConfigMap skupper-site in namespace on ac3-cluster-1", "namespace", targetNamespace)
+						logger.Info("Successfully created ConfigMap skupper-site in namespace on cluster-1", "namespace", targetNamespace)
 
 						break
 					}
@@ -402,7 +402,7 @@ func (r *AC3NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 }
 
 // Helper function to create a Secret
-func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, namespace string) *corev1.Secret {
+func (r *NetworkReconciler) createSecret(ctx context.Context, name string, namespace string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -428,8 +428,11 @@ func (r *AC3NetworkReconciler) createSecret(ctx context.Context, name string, na
 // use the same int i
 // copySecretToNamespace copies a secret to another namespace
 // createUpdateSecret creates the secret in the correct cluster context
-func (r *AC3NetworkReconciler) createUpdateSecret(ctx context.Context, kubeconfig *clientcmdapi.Config, clusterName, namespace string, cost *int) error {
+func (r *NetworkReconciler) createUpdateSecret(ctx context.Context, kubeconfig *clientcmdapi.Config, clusterName, namespace string, cost *int) error {
 	logger := log.FromContext(ctx)
+
+	//log the cluster name
+	logger.Info("Creating secret in cluster", "cluster", clusterName)
 	config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, clusterName, nil, nil).ClientConfig()
 	if err != nil {
 		logger.Error(err, "Failed to get client config for cluster", "cluster", clusterName)
@@ -511,7 +514,7 @@ func (r *AC3NetworkReconciler) createUpdateSecret(ctx context.Context, kubeconfi
 //	// Update the existing secret's data with the data from the copied secret
 //}
 
-func (r *AC3NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.Context, sourceNamespace string, appNames []string, logger logr.Logger) error {
+func (r *NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.Context, sourceNamespace string, appNames []string, logger logr.Logger) error {
 	// List all deployments in the sourceNamespace
 	deployments := &appsv1.DeploymentList{}
 	err := r.List(ctx, deployments, client.InNamespace(sourceNamespace))
@@ -549,7 +552,7 @@ func (r *AC3NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx contex
 	return nil
 }
 
-func (r *AC3NetworkReconciler) updateServicesWithSkupperAnnotation(ctx context.Context, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
+func (r *NetworkReconciler) updateServicesWithSkupperAnnotation(ctx context.Context, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
 	// List all services in the sourceNamespace
 	logger.Info("Entering updateServicesWithSkupperAnnotation", "namespace", sourceNamespace, "serviceNames", serviceNames)
 	servicesList := &corev1.ServiceList{}
@@ -621,7 +624,7 @@ func (r *AC3NetworkReconciler) updateServicesWithSkupperAnnotation(ctx context.C
 //}
 
 // logSkupperLinkStatus logs the status of the Skupper link for a given namespace
-func (r *AC3NetworkReconciler) logSkupperLinkStatus(ctx context.Context, namespace string) error {
+func (r *NetworkReconciler) logSkupperLinkStatus(ctx context.Context, namespace string) error {
 	cmd := exec.Command("skupper", "link", "status", "-n", namespace)
 	output, err := cmd.Output()
 	if err != nil {
@@ -633,7 +636,7 @@ func (r *AC3NetworkReconciler) logSkupperLinkStatus(ctx context.Context, namespa
 }
 
 // reconcileSkupperRouter reconciles a SkupperRouter instance
-func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerInstance SkupperRouter) error {
+func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerInstance SkupperRouter) error {
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling SkupperRouter", "name", routerInstance.Name, "namespace", routerInstance.Namespace)
 
@@ -665,7 +668,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:253",
+									Image: "quay.io/ryjenkin/ac3no3:256",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
@@ -704,7 +707,7 @@ func (r *AC3NetworkReconciler) reconcileSkupperRouter(ctx context.Context, route
 }
 
 // Helper function to create a ConfigMap
-func (r *AC3NetworkReconciler) createConfigMap(ctx context.Context, name string, namespace string, data map[string]string) *corev1.ConfigMap {
+func (r *NetworkReconciler) createConfigMap(ctx context.Context, name string, namespace string, data map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -715,7 +718,7 @@ func (r *AC3NetworkReconciler) createConfigMap(ctx context.Context, name string,
 }
 
 // Helper function to determine if a ConfigMap needs updating
-func (r *AC3NetworkReconciler) needsUpdateConfigMap(configMap *corev1.ConfigMap, data map[string]string) bool {
+func (r *NetworkReconciler) needsUpdateConfigMap(configMap *corev1.ConfigMap, data map[string]string) bool {
 	if configMap.Data == nil {
 		configMap.Data = map[string]string{}
 	}
@@ -733,8 +736,8 @@ func int32Ptr(i int32) *int32 {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AC3NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ac3v1alpha1.AC3Network{}).
+		For(&ac3v1alpha1.MultiClusterNetwork{}).
 		Complete(r)
 }

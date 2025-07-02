@@ -1,0 +1,29 @@
+apiVersion: ac3.redhat.com/v1alpha1
+kind: MultiClusterNetwork
+metadata:
+  name: multiclusternetwork
+  namespace: ac3no
+spec:
+  links:
+      - sourceCluster: "cluster-2"
+        targetCluster: "cluster-1"
+        sourceNamespace: "sk1"
+        targetNamespace: "sk3"
+        applications:
+          - "nginx"
+          - "rabbitmq"
+        services:
+          - "nginx-service"
+        port: 5672
+      - sourceCluster: "cluster-2"
+        targetCluster: "cluster-1"
+        sourceNamespace: "sk2"
+        targetNamespace: "sk4"
+        applications:
+          - "nginx"
+          - "rabbitmq"
+        services:
+          - "nginx-service"
+          - "ryans-service"
+        port: 5672
+

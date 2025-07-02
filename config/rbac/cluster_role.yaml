@@ -4,13 +4,13 @@ metadata:
   name: controller-manager-role
 rules:
 - apiGroups: ["ac3.redhat.com"]
-  resources: ["ac3networks"]
+  resources: ["multiclusternetworks"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["ac3.redhat.com"]
-  resources: ["ac3networks/status"]
+  resources: ["multiclusternetworks/status"]
   verbs: ["get", "update", "patch"]
 - apiGroups: ["ac3.redhat.com"]
-  resources: ["ac3networks/finalizers"]
+  resources: ["multiclusternetworks/finalizers"]
   verbs: ["update"]
 - apiGroups: ["ac3.redhat.com"]
   resources: ["links"]
@@ -19,7 +19,7 @@ rules:
   resources: ["pods", "services", "endpoints", "persistentvolumeclaims"]
   verbs: ["*"]
 - apiGroups: [""]
-  resources: ["secrets", "configmaps"]
+  resources: ["secrets", "configmaps", "namespaces"]
   verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 - apiGroups: ["apps"]
   resources: ["daemonsets", "replicasets", "statefulsets", "deploymentlists", "deployments"]
@@ -27,7 +27,4 @@ rules:
 - apiGroups: ["batch"]
   resources: ["jobs", "cronjobs"]
   verbs: ["*"]
-- apiGroups: [""]
-  resources: ["secrets"]  # Ensure this line is included for creating secrets
-  resourceNames: ["*"]  # This line allows access to secrets by name, or remove if not needed
-  verbs: ["create"]      # Explicitly allow creating secrets in any namespace
+
