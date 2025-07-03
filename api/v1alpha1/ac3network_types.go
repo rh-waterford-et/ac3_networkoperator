@@ -23,7 +23,7 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type AC3Link struct {
+type MultiClusterLink struct {
 	SourceCluster   string   `json:"sourceCluster"`
 	TargetCluster   string   `json:"targetCluster"`
 	SourceNamespace string   `json:"sourceNamespace"`
@@ -33,17 +33,17 @@ type AC3Link struct {
 	Port            int      `json:"port"`
 }
 
-// AC3NetworkSpec defines the desired state of AC3Network
-type AC3NetworkSpec struct {
+// MultiClusterNetworkSpec defines the desired state of MultiClusterNetwork
+type MultiClusterNetworkSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of AC3Network. Edit ac3network_types.go to remove/update
-	Links []AC3Link `json:"links"`
+	// Links define the multi-cluster network connections
+	Links []MultiClusterLink `json:"links"`
 }
 
-// AC3NetworkStatus defines the observed state of AC3Network
-type AC3NetworkStatus struct {
+// MultiClusterNetworkStatus defines the observed state of MultiClusterNetwork
+type MultiClusterNetworkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -51,24 +51,24 @@ type AC3NetworkStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// AC3Network is the Schema for the ac3networks API
-type AC3Network struct {
+// MultiClusterNetwork is the Schema for the multiclusternetworks API
+type MultiClusterNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AC3NetworkSpec   `json:"spec,omitempty"`
-	Status AC3NetworkStatus `json:"status,omitempty"`
+	Spec   MultiClusterNetworkSpec   `json:"spec,omitempty"`
+	Status MultiClusterNetworkStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// AC3NetworkList contains a list of AC3Network
-type AC3NetworkList struct {
+// MultiClusterNetworkList contains a list of MultiClusterNetwork
+type MultiClusterNetworkList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AC3Network `json:"items"`
+	Items           []MultiClusterNetwork `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AC3Network{}, &AC3NetworkList{})
+	SchemeBuilder.Register(&MultiClusterNetwork{}, &MultiClusterNetworkList{})
 }

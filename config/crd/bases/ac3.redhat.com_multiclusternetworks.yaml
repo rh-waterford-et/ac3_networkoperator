@@ -4,20 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: ac3networks.ac3.redhat.com
+  name: multiclusternetworks.ac3.redhat.com
 spec:
   group: ac3.redhat.com
   names:
-    kind: AC3Network
-    listKind: AC3NetworkList
-    plural: ac3networks
-    singular: ac3network
+    kind: MultiClusterNetwork
+    listKind: MultiClusterNetworkList
+    plural: multiclusternetworks
+    singular: multiclusternetwork
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: AC3Network is the Schema for the ac3networks API
+        description: MultiClusterNetwork is the Schema for the multiclusternetworks
+          API
         properties:
           apiVersion:
             description: |-
@@ -37,11 +38,10 @@ spec:
           metadata:
             type: object
           spec:
-            description: AC3NetworkSpec defines the desired state of AC3Network
+            description: MultiClusterNetworkSpec defines the desired state of MultiClusterNetwork
             properties:
               links:
-                description: Foo is an example field of AC3Network. Edit ac3network_types.go
-                  to remove/update
+                description: Links define the multi-cluster network connections
                 items:
                   properties:
                     applications:
@@ -74,7 +74,7 @@ spec:
             - links
             type: object
           status:
-            description: AC3NetworkStatus defines the observed state of AC3Network
+            description: MultiClusterNetworkStatus defines the observed state of MultiClusterNetwork
             type: object
         type: object
     served: true

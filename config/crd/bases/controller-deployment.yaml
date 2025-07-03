@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ac3-network-controller
+  name: multi-cluster-network-operator
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ac3-network-controller
+      app: multi-cluster-network-operator
   template:
     metadata:
       labels:
-        app: ac3-network-controller
+        app: multi-cluster-network-operator
     spec:
       containers:
-      - name: ac3-network-controller
-        image: quay.io/ryjenkin/ac3no3:224  # Replace with your actual image
+      - name: multi-cluster-network-operator
+        image: quay.io/ryjenkin/ac3no3:256  # Replace with your actual image
         imagePullPolicy: Always
         ports:
         - containerPort: 8080  # Example port, change as necessary

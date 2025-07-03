@@ -121,7 +121,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.AC3NetworkReconciler{
+	if err = (&controller.NetworkReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
