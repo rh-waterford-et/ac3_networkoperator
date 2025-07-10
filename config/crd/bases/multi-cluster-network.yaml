@@ -26,4 +26,26 @@ spec:
           - "nginx-service"
           - "ryans-service"
         port: 5672
+      - sourceCluster: "cluster-2"
+        targetCluster: "cluster-3"
+        sourceNamespace: "sk3"
+        targetNamespace: "sk5"
+        applications:
+          - "nginx"
+          - "rabbitmq"
+        services:
+          - "nginx-service"
+          - "ryans-service"
+        port: 5672
+      - sourceCluster: "cluster-2"
+        targetCluster: "cluster-1"
+        sourceNamespace: "sk4"
+        targetNamespace: "sk5"
+        applications:
+          - "nginx"
+          - "rabbitmq"
+        services:
+          - "nginx-service"
+          - "ryans-service"
+        port: 5672
 

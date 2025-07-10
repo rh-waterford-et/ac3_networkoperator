@@ -1,8 +1,15 @@
+# cluster3-sa-rbac.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-3-sa
+  namespace: default # Change this to your desired namespace if not 'default'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: manager-role
+  name: cluster-3-viewer-role
 rules:
 - apiGroups:
   - ""
@@ -69,3 +76,16 @@ rules:
   - get
   - patch
   - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-3-viewer-rolebinding
+subjects:
+- kind: ServiceAccount
+  name: cluster-3-sa
+  namespace: default # Must match the ServiceAccount's namespace
+roleRef:
+  kind: ClusterRole
+  name: cluster-3-viewer-role
+  apiGroup: rbac.authorization.k8s.io
