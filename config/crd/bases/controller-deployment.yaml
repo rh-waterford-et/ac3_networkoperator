@@ -14,10 +14,10 @@ spec:
     spec:
       containers:
       - name: multi-cluster-network-operator
-        image: quay.io/ryjenkin/ac3no3:256  # Replace with your actual image
+        image: quay.io/ryjenkin/ac3no3:271  # Replace with your actual image
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080  # Example port, change as necessary
+        - containerPort: 8080  
         resources:
           requests:
             memory: "64Mi"
@@ -25,6 +25,6 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "2"
-      serviceAccountName: controller-manager # If your controller requires specific permissions
+      serviceAccountName: controller-manager 
 
       

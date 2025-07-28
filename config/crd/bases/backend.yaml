@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-backend
+  labels:
+    app: hello-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello-backend
+  template:
+    metadata:
+      labels:
+        app: hello-backend
+    spec:
+      containers:
+      - name: hello-backend
+        ports:
+          - containerPort: 8080
+            name: web
+            protocol: TCP
+            targetPort: 8080
+        image: quay.io/skupper/hello-world-backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: hello-backend
+  name: backend
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: hello-backend
+  sessionAffinity: None
+  type: ClusterIP

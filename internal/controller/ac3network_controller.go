@@ -188,8 +188,49 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		}
 
 		logger.Info("HERE")
+
+		// Create ConfigMap in source cluster using source cluster client
+		sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, link.SourceCluster, nil, nil).ClientConfig()
+		if err != nil {
+			logger.Error(err, "Failed to create Kubernetes client config for source cluster", "context", link.SourceCluster)
+			return reconcile.Result{}, err
+		}
+
+		sourceClientset, err := kubernetes.NewForConfig(sourceConfig)
+		if err != nil {
+			logger.Error(err, "Failed to create Kubernetes clientset for source cluster", "context", link.SourceCluster)
+			return reconcile.Result{}, err
+		}
+
+		// Create ConfigMap in source cluster
+		sourceConfigMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      configMapName,
+				Namespace: link.SourceNamespace,
+			},
+			Data: data,
+		}
+
+		_, err = sourceClientset.CoreV1().ConfigMaps(link.SourceNamespace).Create(ctx, sourceConfigMap, metav1.CreateOptions{})
+		if err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				logger.Info("ConfigMap already exists in source cluster", "name", configMapName, "namespace", link.SourceNamespace, "cluster", link.SourceCluster)
+			} else {
+				logger.Error(err, "Failed to create ConfigMap in source cluster", "context", link.SourceCluster, "namespace", link.SourceNamespace)
+				return reconcile.Result{}, err
+			}
+		} else {
+			logger.Info("Successfully created ConfigMap in source cluster", "name", configMapName, "namespace", link.SourceNamespace, "cluster", link.SourceCluster)
+		}
+
+		// Also create ConfigMap in target cluster if needed
 		for _, namespace := range configMapNamespaces {
-			logger.Info("Creating namespace", "namespace", namespace)
+			// Skip source namespace as we already handled it above
+			if namespace == link.SourceNamespace {
+				continue
+			}
+
+			logger.Info("Creating ConfigMap in target namespace", "namespace", namespace)
 			configMap := &corev1.ConfigMap{}
 			err := r.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
 			if err != nil {
@@ -537,6 +578,8 @@ func (r *NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.C
 					deployment.Annotations = map[string]string{}
 				}
 				deployment.Annotations["skupper.io/proxy"] = "tcp"
+				deployment.Annotations["skupper.io/port"] = "8080:8080"
+				deployment.Annotations["skupper.io/address"] = deployment.Name
 
 				// Update the deployment
 				err = r.Update(ctx, &deployment)
@@ -576,6 +619,10 @@ func (r *NetworkReconciler) updateServicesWithSkupperAnnotation(ctx context.Cont
 					service.Annotations = map[string]string{}
 				}
 				service.Annotations["skupper.io/proxy"] = service.Name
+				service.Annotations["skupper.io/port"] = "8080"
+				service.Annotations["skupper.io/address"] = service.Name
+				//target
+				service.Annotations["skupper.io/target"] = service.Name
 
 				// Update the service
 				err = r.Update(ctx, &service)
@@ -668,7 +715,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:256",
+									Image: "quay.io/ryjenkin/ac3no3:271",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",

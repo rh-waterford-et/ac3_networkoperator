@@ -5,9 +5,9 @@ metadata:
     app: nginx
     # annotations:
     #   skupper.io/proxy: tcp
-  name: nginx
+  name: ryan3
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: nginx
