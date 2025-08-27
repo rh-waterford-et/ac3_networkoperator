@@ -19,7 +19,7 @@ spec:
         image: quay.io/clwalsh/skupper-hello-world
         env:
         - name: BACKEND_SERVICE_ADDRESS
-          value: "hello-backend.sk5.svc.cluster.local:8080"
+          value: "backend:8080"
         ports:
           - containerPort: 8080
             targetPort: 8080

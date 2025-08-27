@@ -5,27 +5,10 @@ metadata:
   namespace: ac3no
 spec:
   links:
-      - sourceCluster: "cluster-1"
-        targetCluster: "cluster-3"
-        sourceNamespace: "default"
-        targetNamespace: "default"
-        services:
-          - "backend"
-        port: 8080
       - sourceCluster: "cluster-2"
-        targetCluster: "cluster-3"
-        sourceNamespace: "sk2"
-        targetNamespace: "sk8"
+        targetCluster: "cluster-4"
+        sourceNamespace: "test3"
+        targetNamespace: "test4"
         services:
           - "backend"
         port: 8080
-      - sourceCluster: "cluster-2"
-        targetCluster: "cluster-3"
-        sourceNamespace: "sk3"
-        targetNamespace: "sk5"
-        services:
-          - "backend"
-        port: 8080
-
-      
-
