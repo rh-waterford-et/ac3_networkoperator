@@ -316,6 +316,8 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			return reconcile.Result{}, err
 		}
 
+		//have a check in place that will determine a manifest (special case scenario)
+
 		// Call the function to create Skupper proxy services
 		err = r.createSkupperProxyServices(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, serviceNames, link.Port, logger)
 		if err != nil {
@@ -619,19 +621,6 @@ func (r *NetworkReconciler) createSkupperProxyServices(ctx context.Context, kube
 		return err
 	}
 
-	// // Get Kubernetes client for target cluster to create proxy services
-	// targetConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, targetCluster, nil, nil).ClientConfig()
-	// if err != nil {
-	// 	logger.Error(err, "Failed to create Kubernetes client config for target cluster", "context", targetCluster)
-	// 	return err
-	// }
-
-	// targetClientset, err := kubernetes.NewForConfig(targetConfig)
-	// if err != nil {
-	// 	logger.Error(err, "Failed to create Kubernetes clientset for target cluster", "context", targetCluster)
-	// 	return err
-	// }
-
 	// List all services in the sourceNamespace on source cluster
 	servicesList, err := sourceClientset.CoreV1().Services(sourceNamespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -692,13 +681,6 @@ func (r *NetworkReconciler) createSkupperProxyServices(ctx context.Context, kube
 		//print out contents of spec
 		logger.Info("Skupper service spec", "spec", skupperServiceSpec)
 		logger.Info("Skupper service labels", "labels", skupperService.Labels)
-
-		// Copy labels from original service
-		// if originalService.Labels != nil {
-		// 	for k, v := range originalService.Labels {
-		// 		skupperService.Labels[k] = v
-		// 	}
-		// }
 
 		// Create the new service on source cluster
 		_, err = sourceClientset.CoreV1().Services(sourceNamespace).Create(ctx, skupperService, metav1.CreateOptions{})
