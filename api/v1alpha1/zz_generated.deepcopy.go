@@ -113,9 +113,13 @@ func (in *MultiClusterNetworkSpec) DeepCopyInto(out *MultiClusterNetworkSpec) {
 	*out = *in
 	if in.Links != nil {
 		in, out := &in.Links, &out.Links
-		*out = make([]MultiClusterLink, len(*in))
+		*out = make([]*MultiClusterLink, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(MultiClusterLink)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 }

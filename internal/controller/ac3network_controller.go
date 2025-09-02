@@ -263,44 +263,6 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			}
 		}
 
-		//var cost int = 5
-		//// Copy the Secret to the sk2 namespace
-		//err = r.copySecretToNamespace(ctx, secret, "sk2", &cost)
-		//if err != nil {
-		//	logger.Error(err, "Failed to copy Secret to sk2 namespace", "name", secretName)
-		//	return reconcile.Result{}, err
-		//}
-
-		// 7. Log Skupper link status
-		// err = r.logSkupperLinkStatus(ctx, "sk2")
-		// if err != nil {
-		//     logger.Error(err, "Failed to get Skupper link status", "namespace", "sk2")
-		//     return reconcile.Result{}, err
-		// }
-
-		// 8. Fetch the AC3Network instance and reconcile SkupperRouter instances
-		// ac3Network := &ac3v1alpha1.AC3Network{}
-		// if err := r.Get(ctx, req.NamespacedName, ac3Network); err != nil {
-		//     logger.Error(err, "Failed to fetch AC3Network")
-		//     return reconcile.Result{}, client.IgnoreNotFound(err)
-		// }
-
-		// // List all instances of SkupperRouter
-		// routerList := SkupperRouterList{}
-		// if err := r.List(ctx, &routerList, client.InNamespace(req.Namespace)); err != nil {
-		//     logger.Error(err, "Failed to list SkupperRouter instances")
-		//     return reconcile.Result{}, err
-		// }
-
-		// // Reconcile each SkupperRouter instance
-		// for _, routerInstance := range routerList.Items {
-		//     err := r.reconcileSkupperRouter(ctx, routerInstance)
-		//     if err != nil {
-		//         logger.Error(err, "Failed to reconcile SkupperRouter", "name", routerInstance.Name, "namespace", routerInstance.Namespace)
-		//         return reconcile.Result{}, err
-		//     }
-		// }
-
 		// Target clusters and namespaces
 		sourceCluster := link.SourceCluster
 		targetCluster := link.TargetCluster
@@ -520,43 +482,6 @@ func (r *NetworkReconciler) createUpdateSecret(ctx context.Context, kubeconfig *
 	return nil
 }
 
-////------------------------------
-//// Create a deep copy of the secret
-//secretCopy := secret.DeepCopy()
-//// Set the target namespace
-//secretCopy.ObjectMeta.Namespace = targetNamespace
-//// Clear the ResourceVersion for the new object
-//secretCopy.ObjectMeta.ResourceVersion = ""
-//// Attempt to create the secret in the target namespace
-////print out secret copy to log
-//logger.Info("Secret copy", "secret", secretCopy)
-//err = r.Create(ctx, secretCopy)
-//if err != nil && errors.IsAlreadyExists(err) {
-//	// If the secret already exists, update it
-//	existingSecret := &corev1.Secret{}
-//	err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Update the existing secret's data
-//	existingSecret.Data = secretCopy.Data
-//
-//	//set annotation
-//	if cost == nil {
-//		*cost += 10
-//	}
-//
-//	secretCopy.Annotations["skupper.io/cost"] = strconv.Itoa(*cost)
-//	// Retrieve the existing secret from the target namespace
-//	// Update the existing secret in the target namespace
-//	err = r.Update(ctx, existingSecret)
-//	if err != nil {
-//		return err
-//	}
-//	// Update the existing secret's data with the data from the copied secret
-//}
-
 func (r *NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.Context, sourceNamespace string, appNames []string, logger logr.Logger) error {
 	// List all deployments in the sourceNamespace
 	deployments := &appsv1.DeploymentList{}
@@ -749,38 +674,6 @@ func (r *NetworkReconciler) createExternalNameServices(ctx context.Context, kube
 	return nil
 }
 
-// addCost increments the skupper.io/cost label by 1
-// in this below function I want each new link to have a cost of 5 and then each new secret created to go up by 10, right now it is going up from 5 to 15 and then ewach new secret is staying 15, can you try solve this?
-
-// linkSkupperSites links the Skupper sites using the token
-//func (r *AC3NetworkReconciler) linkSkupperSites(ctx context.Context, targetNamespace string, secret *corev1.Secret) error {
-//	// Create the Skupper link by applying the secret in the target namespace
-//	secretToApply := secret.DeepCopy()
-//	secretToApply.Namespace = targetNamespace
-//
-//	// Clear the ResourceVersion to ensure it's a new object creation
-//	secretToApply.ResourceVersion = ""
-//
-//	err := r.Create(ctx, secretToApply)
-//	if err != nil && errors.IsAlreadyExists(err) {
-//		// If already exists, update it
-//		existingSecret := &corev1.Secret{}
-//		err = r.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: targetNamespace}, existingSecret)
-//		if err != nil {
-//			return err
-//		}
-//		existingSecret.Data = secretToApply.Data
-//		err = r.Update(ctx, existingSecret)
-//		if err != nil {
-//			return err
-//		}
-//	} else if err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-
 // logSkupperLinkStatus logs the status of the Skupper link for a given namespace
 func (r *NetworkReconciler) logSkupperLinkStatus(ctx context.Context, namespace string) error {
 	cmd := exec.Command("skupper", "link", "status", "-n", namespace)
@@ -826,7 +719,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:281",
+									Image: "quay.io/ryjenkin/ac3no3:282",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",

@@ -39,7 +39,7 @@ type MultiClusterNetworkSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Links define the multi-cluster network connections
-	Links []MultiClusterLink `json:"links"`
+	Links []*MultiClusterLink `json:"links"`
 }
 
 // MultiClusterNetworkStatus defines the observed state of MultiClusterNetwork

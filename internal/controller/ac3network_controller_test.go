@@ -66,7 +66,7 @@ var _ = Describe("MultiClusterNetwork Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: ac3v1alpha1.MultiClusterNetworkSpec{
-					Links: []ac3v1alpha1.MultiClusterLink{
+					Links: []*ac3v1alpha1.MultiClusterLink{
 						{
 							SourceCluster:   "cluster-1",
 							TargetCluster:   "cluster-2",
@@ -235,7 +235,7 @@ current-context: cluster-1
 					Namespace: "default",
 				},
 				Spec: ac3v1alpha1.MultiClusterNetworkSpec{
-					Links: []ac3v1alpha1.MultiClusterLink{
+					Links: []*ac3v1alpha1.MultiClusterLink{
 						{
 							SourceCluster:   "cluster-1",
 							TargetCluster:   "cluster-2",
@@ -278,7 +278,7 @@ current-context: cluster-1
 					Namespace: "default",
 				},
 				Spec: ac3v1alpha1.MultiClusterNetworkSpec{
-					Links: []ac3v1alpha1.MultiClusterLink{
+					Links: []*ac3v1alpha1.MultiClusterLink{
 						{
 							SourceCluster:   "cluster-1",
 							TargetCluster:   "cluster-2",
