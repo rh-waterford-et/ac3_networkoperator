@@ -12,3 +12,11 @@ spec:
         services:
           - "backend"
         port: 8080
+      - sourceCluster: "cluster-3"
+        targetCluster: "cluster-4"
+        sourceNamespace: "multiclusternetwork-test"
+        targetNamespace: "multiclusternetwork-test1"
+        services:
+          - "backend"
+        port: 8080
+

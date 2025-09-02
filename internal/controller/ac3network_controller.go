@@ -316,20 +316,13 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			return reconcile.Result{}, err
 		}
 
-		//have a check in place that will determine a manifest (special case scenario)
-
-		// Call the function to create Skupper proxy services
-		err = r.createSkupperProxyServices(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, serviceNames, link.Port, logger)
-		if err != nil {
-			logger.Error(err, "Failed to create Skupper proxy services")
-			return reconcile.Result{}, err
-		}
-
-		// Call the function to create ExternalName services on target clusters
-		err = r.createExternalNameServices(ctx, kubeconfig, targetCluster, targetNamespace, sourceNamespace, serviceNames, logger)
-		if err != nil {
-			logger.Error(err, "Failed to create ExternalName services on target cluster", "cluster", targetCluster, "namespace", targetNamespace)
-			return reconcile.Result{}, err
+		// Check if there are services to process and call exposeService function
+		if len(serviceNames) > 0 {
+			err = r.exposeService(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, serviceNames, link.Port, logger)
+			if err != nil {
+				logger.Error(err, "Failed to expose services")
+				return reconcile.Result{}, err
+			}
 		}
 
 		// Step 1: Switch to cluster-2 and get the secret from the source namespace
@@ -833,7 +826,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:279",
+									Image: "quay.io/ryjenkin/ac3no3:281",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
@@ -898,6 +891,125 @@ func (r *NetworkReconciler) needsUpdateConfigMap(configMap *corev1.ConfigMap, da
 // int32Ptr returns a pointer to an int32
 func int32Ptr(i int32) *int32 {
 	return &i
+}
+
+// exposeService processes services based on their ownership structure
+func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, targetCluster, sourceNamespace, targetNamespace string, serviceNames []string, port int, logger logr.Logger) error {
+	logger.Info("Processing services for exposure", "sourceCluster", sourceCluster, "targetCluster", targetCluster, "serviceNames", serviceNames)
+
+	// Get Kubernetes client for source cluster to read services
+	sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, sourceCluster, nil, nil).ClientConfig()
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes client config for source cluster", "context", sourceCluster)
+		return err
+	}
+
+	sourceClientset, err := kubernetes.NewForConfig(sourceConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes clientset for source cluster", "context", sourceCluster)
+		return err
+	}
+
+	// List all services in the sourceNamespace on source cluster
+	servicesList, err := sourceClientset.CoreV1().Services(sourceNamespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		logger.Error(err, "Failed to list services in sourceNamespace", "namespace", sourceNamespace)
+		return err
+	}
+
+	// Iterate through the services defined in the CRD
+	for _, serviceName := range serviceNames {
+		logger.Info("Processing service", "serviceName", serviceName)
+
+		// Find the original service
+		var originalService *corev1.Service
+		for _, service := range servicesList.Items {
+			if service.Name == serviceName {
+				originalService = &service
+				break
+			}
+		}
+
+		if originalService == nil {
+			logger.Info("Original service not found", "serviceName", serviceName)
+			continue
+		}
+
+		logger.Info("Found original service", "serviceName", originalService.Name)
+
+		// Check if service has AppliedManifestWork owner
+		hasAppliedManifestWorkOwner := false
+		if originalService.OwnerReferences != nil {
+			for _, ownerRef := range originalService.OwnerReferences {
+				if ownerRef.Kind == "AppliedManifestWork" {
+					hasAppliedManifestWorkOwner = true
+					logger.Info("Service has AppliedManifestWork owner", "serviceName", serviceName, "ownerKind", ownerRef.Kind, "ownerName", ownerRef.Name)
+					break
+				}
+			}
+		}
+
+		if hasAppliedManifestWorkOwner {
+			// Service has AppliedManifestWork owner - use full proxy/external name approach
+			logger.Info("Using full proxy/external name approach for service with AppliedManifestWork owner", "serviceName", serviceName)
+
+			// Call createSkupperProxyServices for this specific service
+			err = r.createSkupperProxyServices(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, []string{serviceName}, port, logger)
+			if err != nil {
+				logger.Error(err, "Failed to create Skupper proxy services for service with AppliedManifestWork owner", "serviceName", serviceName)
+				return err
+			}
+
+			// Call createExternalNameServices for this specific service
+			err = r.createExternalNameServices(ctx, kubeconfig, targetCluster, targetNamespace, sourceNamespace, []string{serviceName}, logger)
+			if err != nil {
+				logger.Error(err, "Failed to create ExternalName services for service with AppliedManifestWork owner", "serviceName", serviceName)
+				return err
+			}
+		} else {
+			// Service has no AppliedManifestWork owner - use simple annotation approach
+			logger.Info("Using simple annotation approach for service without AppliedManifestWork owner", "serviceName", serviceName)
+
+			err = r.annotateService(ctx, sourceClientset, sourceNamespace, serviceName, port, logger)
+			if err != nil {
+				logger.Error(err, "Failed to annotate service", "serviceName", serviceName)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// annotateService simply annotates a service with Skupper annotations
+func (r *NetworkReconciler) annotateService(ctx context.Context, clientset *kubernetes.Clientset, namespace, serviceName string, port int, logger logr.Logger) error {
+	logger.Info("Annotating service", "serviceName", serviceName, "namespace", namespace)
+
+	// Get the service
+	service, err := clientset.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	if err != nil {
+		logger.Error(err, "Failed to get service for annotation", "serviceName", serviceName, "namespace", namespace)
+		return err
+	}
+
+	// Initialize annotations if nil
+	if service.Annotations == nil {
+		service.Annotations = map[string]string{}
+	}
+
+	// Add or update Skupper annotations
+	service.Annotations["skupper.io/proxy"] = "tcp"
+	service.Annotations["skupper.io/port"] = fmt.Sprintf("%d", port)
+
+	// Update the service
+	_, err = clientset.CoreV1().Services(namespace).Update(ctx, service, metav1.UpdateOptions{})
+	if err != nil {
+		logger.Error(err, "Failed to update service with annotations", "serviceName", serviceName, "namespace", namespace)
+		return err
+	}
+
+	logger.Info("Successfully annotated service", "serviceName", serviceName, "namespace", namespace)
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

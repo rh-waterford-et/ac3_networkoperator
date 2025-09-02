@@ -1,0 +1,52 @@
+# Run oc apply -f source.yaml while logged into the hub cluster
+# The resources will be applied to a cluster that matches the name of the namespace for this manifestwork
+# Run oc delete -f source.yaml to delete all these resources from the cluster
+
+apiVersion: work.open-cluster-management.io/v1
+kind: ManifestWork
+metadata:
+  name: source-resources
+  namespace: cluster-3 # Corresponds to the name of cluster where the resources will be created
+spec:
+  workload:
+    manifests:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: multiclusternetwork-test 
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: hello-backend
+        namespace: multiclusternetwork-test
+        labels:
+          app: hello-backend
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: hello-backend
+        template:
+          metadata:
+            labels:
+              app: hello-backend
+          spec:
+            containers:
+            - name: hello-backend
+              image: quay.io/skupper/hello-world-backend
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: hello-backend
+        name: backend
+        namespace: multiclusternetwork-test
+      spec:
+        ports:
+        - port: 8080
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: hello-backend
+        sessionAffinity: None
+        type: ClusterIP
