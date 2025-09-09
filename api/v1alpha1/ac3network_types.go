@@ -46,6 +46,9 @@ type MultiClusterNetworkSpec struct {
 type MultiClusterNetworkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// PreviousLinks tracks the previous state of links for cleanup purposes
+	PreviousLinks []*MultiClusterLink `json:"previousLinks,omitempty"`
 }
 
 //+kubebuilder:object:root=true

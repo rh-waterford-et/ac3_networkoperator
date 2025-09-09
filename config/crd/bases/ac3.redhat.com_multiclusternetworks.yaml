@@ -75,6 +75,38 @@ spec:
             type: object
           status:
             description: MultiClusterNetworkStatus defines the observed state of MultiClusterNetwork
+            properties:
+              previousLinks:
+                description: PreviousLinks tracks the previous state of links for
+                  cleanup purposes
+                items:
+                  properties:
+                    applications:
+                      items:
+                        type: string
+                      type: array
+                    port:
+                      type: integer
+                    services:
+                      items:
+                        type: string
+                      type: array
+                    sourceCluster:
+                      type: string
+                    sourceNamespace:
+                      type: string
+                    targetCluster:
+                      type: string
+                    targetNamespace:
+                      type: string
+                  required:
+                  - port
+                  - sourceCluster
+                  - sourceNamespace
+                  - targetCluster
+                  - targetNamespace
+                  type: object
+                type: array
             type: object
         type: object
     served: true

@@ -6,19 +6,19 @@ apiVersion: work.open-cluster-management.io/v1
 kind: ManifestWork
 metadata:
   name: source-resources
-  namespace: cluster-3 # Corresponds to the name of cluster where the resources will be created
+  namespace: cluster-1 # Corresponds to the name of cluster where the resources will be created
 spec:
   workload:
     manifests:
     - apiVersion: v1
       kind: Namespace
       metadata:
-        name: multiclusternetwork-test 
+        name: multiclusternetwork-test3 
     - apiVersion: apps/v1
       kind: Deployment
       metadata:
         name: hello-backend
-        namespace: multiclusternetwork-test
+        namespace: multiclusternetwork-test3
         labels:
           app: hello-backend
       spec:
@@ -40,7 +40,7 @@ spec:
         labels:
           app: hello-backend
         name: backend
-        namespace: multiclusternetwork-test
+        namespace: multiclusternetwork-test3  
       spec:
         ports:
         - port: 8080

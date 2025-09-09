@@ -149,6 +149,14 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		logger.Error(err, "Failed to fetch MultiClusterNetwork")
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
+
+	// Check for removed links and clean them up
+	err = r.cleanupRemovedLinks(ctx, kubeconfig, multiclusterNetwork, logger)
+	if err != nil {
+		logger.Error(err, "Failed to cleanup removed links")
+		return reconcile.Result{}, err
+	}
+
 	//make a for loop for each link
 	//retrieving CRD and going through each link
 	logger.Info("Expect Not Here")
@@ -719,7 +727,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:282",
+									Image: "quay.io/ryjenkin/ac3no3:288",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
@@ -902,6 +910,393 @@ func (r *NetworkReconciler) annotateService(ctx context.Context, clientset *kube
 	}
 
 	logger.Info("Successfully annotated service", "serviceName", serviceName, "namespace", namespace)
+	return nil
+}
+
+// cleanupRemovedLinks identifies and cleans up resources for removed links
+func (r *NetworkReconciler) cleanupRemovedLinks(ctx context.Context, kubeconfig *clientcmdapi.Config, multiclusterNetwork *ac3v1alpha1.MultiClusterNetwork, logger logr.Logger) error {
+	logger.Info("Checking for removed links and cleaning up resources")
+
+	// Get previous links from status
+	previousLinks := multiclusterNetwork.Status.PreviousLinks
+	currentLinks := multiclusterNetwork.Spec.Links
+
+	// Debug logging for state comparison
+	logger.Info("State comparison",
+		"previousLinksCount", len(previousLinks),
+		"currentLinksCount", len(currentLinks))
+
+	if previousLinks != nil {
+		for i, link := range previousLinks {
+			if link != nil {
+				logger.Info("Previous link",
+					"index", i,
+					"sourceCluster", link.SourceCluster,
+					"targetCluster", link.TargetCluster,
+					"sourceNamespace", link.SourceNamespace,
+					"targetNamespace", link.TargetNamespace)
+			}
+		}
+	}
+
+	for i, link := range currentLinks {
+		if link != nil {
+			logger.Info("Current link",
+				"index", i,
+				"sourceCluster", link.SourceCluster,
+				"targetCluster", link.TargetCluster,
+				"sourceNamespace", link.SourceNamespace,
+				"targetNamespace", link.TargetNamespace)
+		}
+	}
+
+	// If no previous links, just return (don't update status yet)
+	if previousLinks == nil {
+		logger.Info("No previous links found, skipping cleanup comparison")
+		return nil
+	}
+
+	// Find removed links by comparing current vs previous
+	removedLinks := findRemovedLinks(previousLinks, currentLinks)
+	logger.Info("Link comparison result", "removedLinksCount", len(removedLinks))
+
+	if len(removedLinks) == 0 {
+		logger.Info("No links were removed")
+		// Update status with current links
+		multiclusterNetwork.Status.PreviousLinks = currentLinks
+		if err := r.Status().Update(ctx, multiclusterNetwork); err != nil {
+			logger.Error(err, "Failed to update status with current links")
+			return err
+		}
+		return nil
+	}
+
+	logger.Info("Found removed links, cleaning up resources", "removedLinks", len(removedLinks))
+
+	// Clean up resources for each removed link
+	for _, removedLink := range removedLinks {
+		logger.Info("Cleaning up resources for removed link",
+			"sourceCluster", removedLink.SourceCluster,
+			"targetCluster", removedLink.TargetCluster,
+			"sourceNamespace", removedLink.SourceNamespace,
+			"targetNamespace", removedLink.TargetNamespace,
+			"services", removedLink.Services)
+
+		// Clean up Skupper proxy services on source cluster
+		if err := r.cleanupSkupperProxyServices(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, removedLink.Services, logger); err != nil {
+			logger.Error(err, "Failed to cleanup Skupper proxy services for removed link")
+			// Continue with other cleanup operations
+		}
+
+		// Clean up ExternalName services on target cluster
+		if err := r.cleanupExternalNameServices(ctx, kubeconfig, removedLink.TargetCluster, removedLink.TargetNamespace, removedLink.SourceNamespace, removedLink.Services, logger); err != nil {
+			logger.Error(err, "Failed to cleanup ExternalName services for removed link")
+			// Continue with other cleanup operations
+		}
+
+		// Clean up Skupper annotations from source services
+		if err := r.cleanupSkupperAnnotations(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, removedLink.Services, logger); err != nil {
+			logger.Error(err, "Failed to cleanup Skupper annotations for removed link")
+			// Continue with other cleanup operations
+		}
+
+		// Clean up skupper-site ConfigMaps from both source and target namespaces
+		if err := r.cleanupSkupperSiteConfigMaps(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, logger); err != nil {
+			logger.Error(err, "Failed to cleanup skupper-site ConfigMap from source namespace for removed link")
+			// Continue with other cleanup operations
+		}
+		if err := r.cleanupSkupperSiteConfigMaps(ctx, kubeconfig, removedLink.TargetCluster, removedLink.TargetNamespace, logger); err != nil {
+			logger.Error(err, "Failed to cleanup skupper-site ConfigMap from target namespace for removed link")
+			// Continue with other cleanup operations
+		}
+
+		// Clean up token secrets from both source and target namespaces
+		if err := r.cleanupTokenSecrets(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, logger); err != nil {
+			logger.Error(err, "Failed to cleanup token secret from source namespace for removed link")
+			// Continue with other cleanup operations
+		}
+		if err := r.cleanupTokenSecrets(ctx, kubeconfig, removedLink.TargetCluster, removedLink.TargetNamespace, logger); err != nil {
+			logger.Error(err, "Failed to cleanup token secret from target namespace for removed link")
+			// Continue with other cleanup operations
+		}
+	}
+
+	// Update status with current links
+	multiclusterNetwork.Status.PreviousLinks = currentLinks
+	logger.Info("Attempting to update status with current links after cleanup", "currentLinks", len(currentLinks))
+	if err := r.Status().Update(ctx, multiclusterNetwork); err != nil {
+		logger.Error(err, "Failed to update status with current links")
+		return err
+	}
+	logger.Info("Successfully updated status with current links after cleanup", "currentLinks", len(currentLinks))
+
+	logger.Info("Successfully cleaned up resources for removed links")
+	return nil
+}
+
+// findRemovedLinks compares previous and current links to identify removed ones
+func findRemovedLinks(previousLinks, currentLinks []*ac3v1alpha1.MultiClusterLink) []*ac3v1alpha1.MultiClusterLink {
+	var removedLinks []*ac3v1alpha1.MultiClusterLink
+
+	// Create a map of current links for efficient lookup
+	currentLinkMap := make(map[string]bool)
+	for _, link := range currentLinks {
+		if link != nil {
+			key := fmt.Sprintf("%s-%s-%s-%s", link.SourceCluster, link.TargetCluster, link.SourceNamespace, link.TargetNamespace)
+			currentLinkMap[key] = true
+			fmt.Printf("DEBUG: Added current link key: %s\n", key)
+		}
+	}
+
+	// Check which previous links are no longer in current links
+	for _, link := range previousLinks {
+		if link != nil {
+			key := fmt.Sprintf("%s-%s-%s-%s", link.SourceCluster, link.TargetCluster, link.SourceNamespace, link.TargetNamespace)
+			fmt.Printf("DEBUG: Checking previous link key: %s, exists in current: %v\n", key, currentLinkMap[key])
+			if !currentLinkMap[key] {
+				fmt.Printf("DEBUG: Found removed link: %s\n", key)
+				removedLinks = append(removedLinks, link)
+			}
+		}
+	}
+
+	fmt.Printf("DEBUG: Total removed links found: %d\n", len(removedLinks))
+	return removedLinks
+}
+
+// cleanupSkupperProxyServices removes Skupper proxy services for a specific link
+func (r *NetworkReconciler) cleanupSkupperProxyServices(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
+	logger.Info("Cleaning up Skupper proxy services", "sourceCluster", sourceCluster, "sourceNamespace", sourceNamespace, "serviceNames", serviceNames)
+	fmt.Printf("DEBUG: cleanupSkupperProxyServices called with sourceCluster=%s, sourceNamespace=%s, serviceNames=%v\n", sourceCluster, sourceNamespace, serviceNames)
+
+	// Get Kubernetes client for source cluster
+	sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, sourceCluster, nil, nil).ClientConfig()
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes client config for source cluster", "context", sourceCluster)
+		return err
+	}
+
+	sourceClientset, err := kubernetes.NewForConfig(sourceConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes clientset for source cluster", "context", sourceCluster)
+		return err
+	}
+
+	// Remove Skupper proxy services
+	for _, serviceName := range serviceNames {
+		skupperServiceName := serviceName + "-skupper"
+		fmt.Printf("DEBUG: Looking for Skupper proxy service: %s in namespace %s on cluster %s\n", skupperServiceName, sourceNamespace, sourceCluster)
+
+		// Check if the service exists
+		_, err := sourceClientset.CoreV1().Services(sourceNamespace).Get(ctx, skupperServiceName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				logger.Info("Skupper proxy service not found, skipping cleanup", "serviceName", skupperServiceName)
+				fmt.Printf("DEBUG: Skupper proxy service %s not found, skipping\n", skupperServiceName)
+				continue
+			}
+			logger.Error(err, "Failed to check Skupper proxy service existence", "serviceName", skupperServiceName)
+			fmt.Printf("DEBUG: Error checking Skupper proxy service %s: %v\n", skupperServiceName, err)
+			continue
+		}
+
+		// Delete the service
+		fmt.Printf("DEBUG: Attempting to delete Skupper proxy service: %s\n", skupperServiceName)
+		err = sourceClientset.CoreV1().Services(sourceNamespace).Delete(ctx, skupperServiceName, metav1.DeleteOptions{})
+		if err != nil {
+			logger.Error(err, "Failed to delete Skupper proxy service", "serviceName", skupperServiceName)
+			fmt.Printf("DEBUG: Failed to delete Skupper proxy service %s: %v\n", skupperServiceName, err)
+			continue
+		}
+
+		logger.Info("Successfully deleted Skupper proxy service", "serviceName", skupperServiceName)
+		fmt.Printf("DEBUG: Successfully deleted Skupper proxy service: %s\n", skupperServiceName)
+	}
+
+	return nil
+}
+
+// cleanupExternalNameServices removes ExternalName services on target clusters
+func (r *NetworkReconciler) cleanupExternalNameServices(ctx context.Context, kubeconfig *clientcmdapi.Config, targetCluster, targetNamespace, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
+	logger.Info("Cleaning up ExternalName services", "targetCluster", targetCluster, "targetNamespace", targetNamespace, "serviceNames", serviceNames)
+
+	// Get Kubernetes client for target cluster
+	targetConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, targetCluster, nil, nil).ClientConfig()
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes client config for target cluster", "context", targetCluster)
+		return err
+	}
+
+	targetClientset, err := kubernetes.NewForConfig(targetConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes clientset for target cluster", "context", targetCluster)
+		return err
+	}
+
+	// Remove ExternalName services
+	for _, serviceName := range serviceNames {
+		// Check if the service exists
+		_, err := targetClientset.CoreV1().Services(targetNamespace).Get(ctx, serviceName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				logger.Info("ExternalName service not found, skipping cleanup", "serviceName", serviceName)
+				continue
+			}
+			logger.Error(err, "Failed to check ExternalName service existence", "serviceName", serviceName)
+			continue
+		}
+
+		// Delete the service
+		err = targetClientset.CoreV1().Services(targetNamespace).Delete(ctx, serviceName, metav1.DeleteOptions{})
+		if err != nil {
+			logger.Error(err, "Failed to delete ExternalName service", "serviceName", serviceName)
+			continue
+		}
+
+		logger.Info("Successfully deleted ExternalName service", "serviceName", serviceName)
+	}
+
+	return nil
+}
+
+// cleanupSkupperAnnotations removes Skupper annotations from source services
+func (r *NetworkReconciler) cleanupSkupperAnnotations(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
+	logger.Info("Cleaning up Skupper annotations", "sourceCluster", sourceCluster, "sourceNamespace", sourceNamespace, "serviceNames", serviceNames)
+
+	// Get Kubernetes client for source cluster
+	sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, sourceCluster, nil, nil).ClientConfig()
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes client config for source cluster", "context", sourceCluster)
+		return err
+	}
+
+	sourceClientset, err := kubernetes.NewForConfig(sourceConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes clientset for source cluster", "context", sourceCluster)
+		return err
+	}
+
+	// Remove Skupper annotations
+	for _, serviceName := range serviceNames {
+		// Get the service
+		service, err := sourceClientset.CoreV1().Services(sourceNamespace).Get(ctx, serviceName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				logger.Info("Service not found, skipping annotation cleanup", "serviceName", serviceName)
+				continue
+			}
+			logger.Error(err, "Failed to get service for annotation cleanup", "serviceName", serviceName)
+			continue
+		}
+
+		// Check if service has Skupper annotations
+		if service.Annotations == nil {
+			logger.Info("Service has no annotations, skipping cleanup", "serviceName", serviceName)
+			continue
+		}
+
+		// Remove Skupper annotations
+		annotationsRemoved := false
+		if _, exists := service.Annotations["skupper.io/proxy"]; exists {
+			delete(service.Annotations, "skupper.io/proxy")
+			annotationsRemoved = true
+		}
+		if _, exists := service.Annotations["skupper.io/port"]; exists {
+			delete(service.Annotations, "skupper.io/port")
+			annotationsRemoved = true
+		}
+
+		if annotationsRemoved {
+			// Update the service
+			_, err = sourceClientset.CoreV1().Services(sourceNamespace).Update(ctx, service, metav1.UpdateOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to update service after removing annotations", "serviceName", serviceName)
+				continue
+			}
+			logger.Info("Successfully removed Skupper annotations", "serviceName", serviceName)
+		} else {
+			logger.Info("No Skupper annotations found, skipping cleanup", "serviceName", serviceName)
+		}
+	}
+
+	return nil
+}
+
+// cleanupSkupperSiteConfigMaps removes skupper-site ConfigMaps from a specific cluster/namespace
+func (r *NetworkReconciler) cleanupSkupperSiteConfigMaps(ctx context.Context, kubeconfig *clientcmdapi.Config, cluster, namespace string, logger logr.Logger) error {
+	logger.Info("Cleaning up skupper-site ConfigMaps", "cluster", cluster, "namespace", namespace)
+
+	// Get Kubernetes client for the cluster
+	config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, cluster, nil, nil).ClientConfig()
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes client config for cluster", "context", cluster)
+		return err
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes clientset for cluster", "context", cluster)
+		return err
+	}
+
+	// Check if the skupper-site ConfigMap exists
+	_, err = clientset.CoreV1().ConfigMaps(namespace).Get(ctx, "skupper-site", metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("skupper-site ConfigMap not found, skipping cleanup", "configMapName", "skupper-site")
+			return nil
+		}
+		logger.Error(err, "Failed to check skupper-site ConfigMap existence", "configMapName", "skupper-site")
+		return err
+	}
+
+	// Delete the ConfigMap
+	err = clientset.CoreV1().ConfigMaps(namespace).Delete(ctx, "skupper-site", metav1.DeleteOptions{})
+	if err != nil {
+		logger.Error(err, "Failed to delete skupper-site ConfigMap", "configMapName", "skupper-site")
+		return err
+	}
+
+	logger.Info("Successfully deleted skupper-site ConfigMap", "configMapName", "skupper-site", "cluster", cluster, "namespace", namespace)
+	return nil
+}
+
+// cleanupTokenSecrets removes token secrets from a specific cluster/namespace
+func (r *NetworkReconciler) cleanupTokenSecrets(ctx context.Context, kubeconfig *clientcmdapi.Config, cluster, namespace string, logger logr.Logger) error {
+	logger.Info("Cleaning up token secrets", "cluster", cluster, "namespace", namespace)
+
+	// Get Kubernetes client for the cluster
+	config, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, cluster, nil, nil).ClientConfig()
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes client config for cluster", "context", cluster)
+		return err
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.Error(err, "Failed to create Kubernetes clientset for cluster", "context", cluster)
+		return err
+	}
+
+	// Check if the token secret exists
+	_, err = clientset.CoreV1().Secrets(namespace).Get(ctx, "token", metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("token secret not found, skipping cleanup", "secretName", "token")
+			return nil
+		}
+		logger.Error(err, "Failed to check token secret existence", "secretName", "token")
+		return err
+	}
+
+	// Delete the secret
+	err = clientset.CoreV1().Secrets(namespace).Delete(ctx, "token", metav1.DeleteOptions{})
+	if err != nil {
+		logger.Error(err, "Failed to delete token secret", "secretName", "token")
+		return err
+	}
+
+	logger.Info("Successfully deleted token secret", "secretName", "token", "cluster", cluster, "namespace", namespace)
 	return nil
 }
 
