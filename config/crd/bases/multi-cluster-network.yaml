@@ -10,7 +10,9 @@ spec:
         sourceNamespace: "test3"
         targetNamespace: "test4"
         services:
-          - "backend"
-        port: 8080
+          - name: "backend"
+            port: 8080
+          - name: "my-nginx"
+            port: 80
 
 

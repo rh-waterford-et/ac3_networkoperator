@@ -23,14 +23,18 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type ServicePortPair struct {
+	Name string `json:"name"`
+	Port int    `json:"port"`
+}
+
 type MultiClusterLink struct {
-	SourceCluster   string   `json:"sourceCluster"`
-	TargetCluster   string   `json:"targetCluster"`
-	SourceNamespace string   `json:"sourceNamespace"`
-	TargetNamespace string   `json:"targetNamespace"`
-	Applications    []string `json:"applications,omitempty"`
-	Services        []string `json:"services,omitempty"`
-	Port            int      `json:"port"`
+	SourceCluster   string            `json:"sourceCluster"`
+	TargetCluster   string            `json:"targetCluster"`
+	SourceNamespace string            `json:"sourceNamespace"`
+	TargetNamespace string            `json:"targetNamespace"`
+	Applications    []string          `json:"applications,omitempty"`
+	Services        []ServicePortPair `json:"services,omitempty"`
 }
 
 // MultiClusterNetworkSpec defines the desired state of MultiClusterNetwork

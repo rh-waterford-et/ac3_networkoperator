@@ -48,11 +48,17 @@ spec:
                       items:
                         type: string
                       type: array
-                    port:
-                      type: integer
                     services:
                       items:
-                        type: string
+                        properties:
+                          name:
+                            type: string
+                          port:
+                            type: integer
+                        required:
+                        - name
+                        - port
+                        type: object
                       type: array
                     sourceCluster:
                       type: string
@@ -63,7 +69,6 @@ spec:
                     targetNamespace:
                       type: string
                   required:
-                  - port
                   - sourceCluster
                   - sourceNamespace
                   - targetCluster
@@ -85,11 +90,17 @@ spec:
                       items:
                         type: string
                       type: array
-                    port:
-                      type: integer
                     services:
                       items:
-                        type: string
+                        properties:
+                          name:
+                            type: string
+                          port:
+                            type: integer
+                        required:
+                        - name
+                        - port
+                        type: object
                       type: array
                     sourceCluster:
                       type: string
@@ -100,7 +111,6 @@ spec:
                     targetNamespace:
                       type: string
                   required:
-                  - port
                   - sourceCluster
                   - sourceNamespace
                   - targetCluster

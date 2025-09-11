@@ -277,7 +277,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		sourceNamespace := link.SourceNamespace
 		targetNamespace := link.TargetNamespace
 		appNames := link.Applications
-		serviceNames := link.Services
+		servicePairs := link.Services
 
 		// Call the function to update deployments with Skupper annotation
 		err = r.updateDeploymentsWithSkupperAnnotation(ctx, sourceNamespace, appNames, logger)
@@ -287,8 +287,8 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		}
 
 		// Check if there are services to process and call exposeService function
-		if len(serviceNames) > 0 {
-			err = r.exposeService(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, serviceNames, link.Port, logger)
+		if len(servicePairs) > 0 {
+			err = r.exposeService(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, servicePairs, logger)
 			if err != nil {
 				logger.Error(err, "Failed to expose services")
 				return reconcile.Result{}, err
@@ -727,7 +727,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:288",
+									Image: "quay.io/ryjenkin/ac3no3:290",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
@@ -795,8 +795,8 @@ func int32Ptr(i int32) *int32 {
 }
 
 // exposeService processes services based on their ownership structure
-func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, targetCluster, sourceNamespace, targetNamespace string, serviceNames []string, port int, logger logr.Logger) error {
-	logger.Info("Processing services for exposure", "sourceCluster", sourceCluster, "targetCluster", targetCluster, "serviceNames", serviceNames)
+func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, targetCluster, sourceNamespace, targetNamespace string, servicePairs []ac3v1alpha1.ServicePortPair, logger logr.Logger) error {
+	logger.Info("Processing services for exposure", "sourceCluster", sourceCluster, "targetCluster", targetCluster, "servicePairs", servicePairs)
 
 	// Get Kubernetes client for source cluster to read services
 	sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, sourceCluster, nil, nil).ClientConfig()
@@ -819,8 +819,10 @@ func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clien
 	}
 
 	// Iterate through the services defined in the CRD
-	for _, serviceName := range serviceNames {
-		logger.Info("Processing service", "serviceName", serviceName)
+	for _, servicePair := range servicePairs {
+		serviceName := servicePair.Name
+		port := servicePair.Port
+		logger.Info("Processing service", "serviceName", serviceName, "port", port)
 
 		// Find the original service
 		var originalService *corev1.Service
@@ -975,27 +977,33 @@ func (r *NetworkReconciler) cleanupRemovedLinks(ctx context.Context, kubeconfig 
 
 	// Clean up resources for each removed link
 	for _, removedLink := range removedLinks {
+		// Extract service names from ServicePortPair list
+		serviceNames := make([]string, len(removedLink.Services))
+		for i, servicePair := range removedLink.Services {
+			serviceNames[i] = servicePair.Name
+		}
+
 		logger.Info("Cleaning up resources for removed link",
 			"sourceCluster", removedLink.SourceCluster,
 			"targetCluster", removedLink.TargetCluster,
 			"sourceNamespace", removedLink.SourceNamespace,
 			"targetNamespace", removedLink.TargetNamespace,
-			"services", removedLink.Services)
+			"services", serviceNames)
 
 		// Clean up Skupper proxy services on source cluster
-		if err := r.cleanupSkupperProxyServices(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, removedLink.Services, logger); err != nil {
+		if err := r.cleanupSkupperProxyServices(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, serviceNames, logger); err != nil {
 			logger.Error(err, "Failed to cleanup Skupper proxy services for removed link")
 			// Continue with other cleanup operations
 		}
 
 		// Clean up ExternalName services on target cluster
-		if err := r.cleanupExternalNameServices(ctx, kubeconfig, removedLink.TargetCluster, removedLink.TargetNamespace, removedLink.SourceNamespace, removedLink.Services, logger); err != nil {
+		if err := r.cleanupExternalNameServices(ctx, kubeconfig, removedLink.TargetCluster, removedLink.TargetNamespace, removedLink.SourceNamespace, serviceNames, logger); err != nil {
 			logger.Error(err, "Failed to cleanup ExternalName services for removed link")
 			// Continue with other cleanup operations
 		}
 
 		// Clean up Skupper annotations from source services
-		if err := r.cleanupSkupperAnnotations(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, removedLink.Services, logger); err != nil {
+		if err := r.cleanupSkupperAnnotations(ctx, kubeconfig, removedLink.SourceCluster, removedLink.SourceNamespace, serviceNames, logger); err != nil {
 			logger.Error(err, "Failed to cleanup Skupper annotations for removed link")
 			// Continue with other cleanup operations
 		}
