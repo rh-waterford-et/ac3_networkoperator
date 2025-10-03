@@ -795,7 +795,7 @@ func int32Ptr(i int32) *int32 {
 }
 
 // exposeService processes services based on their ownership structure
-func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, targetCluster, sourceNamespace, targetNamespace string, servicePairs []ac3v1alpha1.ServicePortPair, logger logr.Logger) error {
+func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, targetCluster, sourceNamespace, targetNamespace string, servicePairs []*ac3v1alpha1.ServicePortPair, logger logr.Logger) error {
 	logger.Info("Processing services for exposure", "sourceCluster", sourceCluster, "targetCluster", targetCluster, "servicePairs", servicePairs)
 
 	// Get Kubernetes client for source cluster to read services
