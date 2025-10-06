@@ -13,12 +13,12 @@ spec:
     - apiVersion: v1
       kind: Namespace
       metadata:
-        name: multiclusternetwork-test3 
+        name: multiclusternetwork-test5 
     - apiVersion: apps/v1
       kind: Deployment
       metadata:
         name: hello-backend
-        namespace: multiclusternetwork-test3
+        namespace: multiclusternetwork-test5
         labels:
           app: hello-backend
       spec:
@@ -40,7 +40,7 @@ spec:
         labels:
           app: hello-backend
         name: backend
-        namespace: multiclusternetwork-test3  
+        namespace: multiclusternetwork-test5  
       spec:
         ports:
         - port: 8080

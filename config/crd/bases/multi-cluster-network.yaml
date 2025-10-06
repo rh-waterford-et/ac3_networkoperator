@@ -5,14 +5,30 @@ metadata:
   namespace: ac3no
 spec:
   links:
-      - sourceCluster: "cluster-2"
+      - sourceCluster: "cluster-1"
         targetCluster: "cluster-4"
-        sourceNamespace: "test3"
-        targetNamespace: "test4"
+        sourceNamespace: "multiclusternetwork-test5"
+        targetNamespace: "multiclusternetwork-test6"
         services:
           - name: "backend"
             port: 8080
-          - name: "my-nginx"
+      - sourceCluster: "cluster-1"
+        targetCluster: "cluster-4"
+        sourceNamespace: "multiclusternetwork-test9"
+        targetNamespace: "multiclusternetwork-test10"
+        services:
+          - name: "backend"
+            port: 8080
+      - sourceCluster: "cluster-2"
+        targetCluster: "cluster-2"
+        sourceNamespace: "skupper-test2"
+        targetNamespace: "skupper-test1"
+        services:
+          - name: "test"
             port: 80
+
+
+
+
 
 

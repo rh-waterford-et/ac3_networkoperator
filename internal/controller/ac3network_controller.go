@@ -231,43 +231,42 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			logger.Info("Successfully created ConfigMap in source cluster", "name", configMapName, "namespace", link.SourceNamespace, "cluster", link.SourceCluster)
 		}
 
-		// Also create ConfigMap in target cluster if needed
-		for _, namespace := range configMapNamespaces {
-			// Skip source namespace as we already handled it above
-			if namespace == link.SourceNamespace {
-				continue
+		// Also create ConfigMap in target cluster
+		if link.TargetNamespace != link.SourceNamespace || link.TargetCluster != link.SourceCluster {
+			logger.Info("Creating ConfigMap in target cluster", "cluster", link.TargetCluster, "namespace", link.TargetNamespace)
+			
+			// Get target cluster client
+			targetConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, link.TargetCluster, nil, nil).ClientConfig()
+			if err != nil {
+				logger.Error(err, "Failed to create Kubernetes client config for target cluster", "context", link.TargetCluster)
+				return reconcile.Result{}, err
 			}
 
-			logger.Info("Creating ConfigMap in target namespace", "namespace", namespace)
-			configMap := &corev1.ConfigMap{}
-			err := r.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
+			targetClientset, err := kubernetes.NewForConfig(targetConfig)
 			if err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					logger.Error(err, "Failed to get ConfigMap", "name", configMapName, "namespace", namespace)
+				logger.Error(err, "Failed to create Kubernetes clientset for target cluster", "context", link.TargetCluster)
+				return reconcile.Result{}, err
+			}
+
+			// Create ConfigMap in target cluster
+			targetConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: link.TargetNamespace,
+				},
+				Data: data,
+			}
+
+			_, err = targetClientset.CoreV1().ConfigMaps(link.TargetNamespace).Create(ctx, targetConfigMap, metav1.CreateOptions{})
+			if err != nil {
+				if strings.Contains(err.Error(), "already exists") {
+					logger.Info("ConfigMap already exists in target cluster", "name", configMapName, "namespace", link.TargetNamespace, "cluster", link.TargetCluster)
+				} else {
+					logger.Error(err, "Failed to create ConfigMap in target cluster", "context", link.TargetCluster, "namespace", link.TargetNamespace)
 					return reconcile.Result{}, err
 				}
-
-				// Create the ConfigMap if it doesn't exist
-				configMap = r.createConfigMap(ctx, configMapName, namespace, data)
-				if err := r.Create(ctx, configMap); err != nil {
-					// Continue with next namespace instead of returning
-					continue
-				}
-				logger.Info("Created ConfigMap", "name", configMapName, "namespace", namespace)
-
 			} else {
-				//log here
-				logger.Info("ConfigMap already exists", "name", configMapName, "namespace", namespace)
-
-				// Update the ConfigMap if necessary
-				if r.needsUpdateConfigMap(configMap, data) {
-					configMap.Data = data
-					if err := r.Update(ctx, configMap); err != nil {
-						logger.Error(err, "Failed to update ConfigMap", "name", configMapName, "namespace", namespace)
-						return reconcile.Result{}, err
-					}
-					logger.Info("Updated ConfigMap", "name", configMapName, "namespace", namespace)
-				}
+				logger.Info("Successfully created ConfigMap in target cluster", "name", configMapName, "namespace", link.TargetNamespace, "cluster", link.TargetCluster)
 			}
 		}
 
@@ -727,7 +726,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:290",
+									Image: "quay.io/ryjenkin/ac3no3:291",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
@@ -856,10 +855,17 @@ func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clien
 			// Service has AppliedManifestWork owner - use full proxy/external name approach
 			logger.Info("Using full proxy/external name approach for service with AppliedManifestWork owner", "serviceName", serviceName)
 
-			// Call createSkupperProxyServices for this specific service
+			// Call createSkupperProxyServices for this specific service on SOURCE cluster
 			err = r.createSkupperProxyServices(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, []string{serviceName}, port, logger)
 			if err != nil {
 				logger.Error(err, "Failed to create Skupper proxy services for service with AppliedManifestWork owner", "serviceName", serviceName)
+				return err
+			}
+
+			// Call createSkupperProxyServices for this specific service on TARGET cluster
+			err = r.createSkupperProxyServices(ctx, kubeconfig, targetCluster, sourceCluster, targetNamespace, sourceNamespace, []string{serviceName}, port, logger)
+			if err != nil {
+				logger.Error(err, "Failed to create Skupper proxy services on target cluster for service with AppliedManifestWork owner", "serviceName", serviceName)
 				return err
 			}
 
