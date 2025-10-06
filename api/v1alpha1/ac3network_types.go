@@ -29,12 +29,12 @@ type ServicePortPair struct {
 }
 
 type MultiClusterLink struct {
-	SourceCluster   string            `json:"sourceCluster"`
-	TargetCluster   string            `json:"targetCluster"`
-	SourceNamespace string            `json:"sourceNamespace"`
-	TargetNamespace string            `json:"targetNamespace"`
-	Applications    []string          `json:"applications,omitempty"`
-	Services        []ServicePortPair `json:"services,omitempty"`
+	SourceCluster   string             `json:"sourceCluster"`
+	TargetCluster   string             `json:"targetCluster"`
+	SourceNamespace string             `json:"sourceNamespace"`
+	TargetNamespace string             `json:"targetNamespace"`
+	Applications    []string           `json:"applications,omitempty"`
+	Services        []*ServicePortPair `json:"services,omitempty"`
 }
 
 // MultiClusterNetworkSpec defines the desired state of MultiClusterNetwork
@@ -74,6 +74,26 @@ type MultiClusterNetworkList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []MultiClusterNetwork `json:"items"`
+}
+
+func (link *MultiClusterLink) AddService(service *ServicePortPair) {
+	for _, s := range link.Services {
+		if s.Name == service.Name && s.Port == service.Port {
+			return
+		}
+	}
+
+	link.Services = append(link.Services, service)
+}
+
+func (link *MultiClusterLink) GetService(serviceName string) (int, *ServicePortPair) {
+	for index, service := range link.Services {
+		if service.Name == serviceName {
+			return index, service
+		}
+	}
+
+	return -1, nil
 }
 
 func init() {

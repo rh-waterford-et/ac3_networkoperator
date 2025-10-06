@@ -34,8 +34,14 @@ func (in *MultiClusterLink) DeepCopyInto(out *MultiClusterLink) {
 	}
 	if in.Services != nil {
 		in, out := &in.Services, &out.Services
-		*out = make([]ServicePortPair, len(*in))
-		copy(*out, *in)
+		*out = make([]*ServicePortPair, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(ServicePortPair)
+				**out = **in
+			}
+		}
 	}
 }
 
