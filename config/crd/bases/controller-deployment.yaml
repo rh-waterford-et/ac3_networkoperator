@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: multi-cluster-network-operator
-        image: quay.io/ryjenkin/ac3no3:291  # Replace with your actual image
+        image: quay.io/ryjenkin/ac3no3:292  # Replace with your actual image
         imagePullPolicy: Always
         ports:
         - containerPort: 8080  
