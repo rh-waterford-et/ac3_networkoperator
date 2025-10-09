@@ -162,7 +162,6 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	logger.Info("Expect Not Here")
 	for _, link := range multiclusterNetwork.Spec.Links {
 		logger.Info("Not Here")
-		configMapNamespaces := []string{link.SourceNamespace, link.TargetNamespace}
 		configMapName := "skupper-site"
 		data := map[string]string{
 			"example.key":                 "example.value",
@@ -408,6 +407,15 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 
 	logger.Info("Reconcile loop completed successfully")
+	
+	// Update status with current links to enable cleanup detection on future reconciles
+	multiclusterNetwork.Status.PreviousLinks = multiclusterNetwork.Spec.Links
+	if err := r.Status().Update(ctx, multiclusterNetwork); err != nil {
+		logger.Error(err, "Failed to update status with current links")
+		return reconcile.Result{}, err
+	}
+	logger.Info("Successfully updated status with current links", "currentLinks", len(multiclusterNetwork.Spec.Links))
+	
 	// I want to have my reconcile look every 30 seconds
 	return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 
@@ -726,7 +734,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:291",
+									Image: "quay.io/ryjenkin/ac3no3:292",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
