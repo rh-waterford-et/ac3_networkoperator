@@ -169,9 +169,8 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			"flow-collector":              "true",
 			"console-user":                "username",
 			"console-password":            "password",
-			"router-cpu":                  "2",     // Example: 2 cores
+			"router-cpu":                  "1",     // Example: 2 cores
 			"router-memory":               "256Mi", // Example: 256 MiB
-			"router-cpu-limit":            "5",     // Example: 1 core
 			"router-memory-limit":         "512Mi", // Example: 512 MiB
 			"controller-cpu":              "250m",  // Example: 250 millicores
 			"controller-memory":           "128Mi", // Example: 128 MiB
