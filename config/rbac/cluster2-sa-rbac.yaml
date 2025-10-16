@@ -1,0 +1,93 @@
+# cluster2-sa-rbac.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-2-sa
+  namespace: default # Change this to your desired namespace if not 'default'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-2-viewer-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - services
+  - configmaps
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - multiclusternetworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - multiclusternetworks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - multiclusternetworks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - skupperrouters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - skupperrouters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ac3.redhat.com
+  resources:
+  - skupperrouters/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-2-viewer-rolebinding
+subjects:
+- kind: ServiceAccount
+  name: cluster-2-sa
+  namespace: default # Must match the ServiceAccount's namespace
+roleRef:
+  kind: ClusterRole
+  name: cluster-2-viewer-role
+  apiGroup: rbac.authorization.k8s.io
