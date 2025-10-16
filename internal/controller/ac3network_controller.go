@@ -733,7 +733,7 @@ func (r *NetworkReconciler) reconcileSkupperRouter(ctx context.Context, routerIn
 							Containers: []corev1.Container{
 								{
 									Name:  "skupper-router",
-									Image: "quay.io/ryjenkin/ac3no3:292",
+									Image: "quay.io/ryjenkin/ac3no3:293",
 									Ports: []corev1.ContainerPort{
 										{
 											Name:          "amqp",
