@@ -158,33 +158,25 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 
 	//make a for loop for each link
-	//retrieving CRD and going through each link
+	//retrieving CR and going through each link
 	logger.Info("Expect Not Here")
 	for _, link := range multiclusterNetwork.Spec.Links {
 		logger.Info("Not Here")
 		configMapName := "skupper-site"
 		data := map[string]string{
-			"example.key":                 "example.value",
-			"console":                     "true",
-			"flow-collector":              "true",
-			"console-user":                "username",
-			"console-password":            "password",
-			"router-cpu":                  "1",     // Example: 2 cores
-			"router-memory":               "256Mi", // Example: 256 MiB
-			"router-memory-limit":         "512Mi", // Example: 512 MiB
-			"controller-cpu":              "250m",  // Example: 250 millicores
-			"controller-memory":           "128Mi", // Example: 128 MiB
-			"controller-cpu-limit":        "500m",  // Example: 500 millicores
-			"controller-memory-limit":     "256Mi", // Example: 256 MiB
-			"flow-collector-cpu":          "250m",  // Example: 250 millicores
-			"flow-collector-memory":       "256Mi", // Example: 256 MiB
-			"flow-collector-cpu-limit":    "500m",  // Example: 500 millicores
-			"flow-collector-memory-limit": "512Mi", // Example: 512 MiB
-			"prometheus-cpu":              "500m",  // Example: 500 millicores
-			"prometheus-memory":           "512Mi", // Example: 512 MiB
-			"prometheus-cpu-limit":        "1",     // Example: 1 core
-			"prometheus-memory-limit":     "1Gi",   // Example: 1 GiB
-			"enable-skupper-events":       "true",
+			"enable-console":          "false",
+			"router-cpu":              "1",     // Example: 2 cores
+			"router-memory":           "256Mi", // Example: 256 MiB
+			"router-memory-limit":     "512Mi", // Example: 512 MiB
+			"controller-cpu":          "250m",  // Example: 250 millicores
+			"controller-memory":       "128Mi", // Example: 128 MiB
+			"controller-cpu-limit":    "500m",  // Example: 500 millicores
+			"controller-memory-limit": "256Mi", // Example: 256 MiB
+			"prometheus-cpu":          "500m",  // Example: 500 millicores
+			"prometheus-memory":       "512Mi", // Example: 512 MiB
+			"prometheus-cpu-limit":    "1",     // Example: 1 core
+			"prometheus-memory-limit": "1Gi",   // Example: 1 GiB
+			"enable-skupper-events":   "true",
 		}
 
 		err = r.createUpdateSecret(ctx, kubeconfig, link.SourceCluster, link.SourceNamespace, pointer.Int(5))
@@ -232,7 +224,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		// Also create ConfigMap in target cluster
 		if link.TargetNamespace != link.SourceNamespace || link.TargetCluster != link.SourceCluster {
 			logger.Info("Creating ConfigMap in target cluster", "cluster", link.TargetCluster, "namespace", link.TargetNamespace)
-			
+
 			// Get target cluster client
 			targetConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, link.TargetCluster, nil, nil).ClientConfig()
 			if err != nil {
@@ -277,10 +269,12 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		servicePairs := link.Services
 
 		// Call the function to update deployments with Skupper annotation
-		err = r.updateDeploymentsWithSkupperAnnotation(ctx, sourceNamespace, appNames, logger)
-		if err != nil {
-			logger.Error(err, "Failed to update deployments with Skupper annotation")
-			return reconcile.Result{}, err
+		if len(appNames) > 0 {
+			err = r.updateDeploymentsWithSkupperAnnotation(ctx, sourceNamespace, appNames, logger)
+			if err != nil {
+				logger.Error(err, "Failed to update deployments with Skupper annotation")
+				return reconcile.Result{}, err
+			}
 		}
 
 		// Check if there are services to process and call exposeService function
@@ -406,7 +400,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 
 	logger.Info("Reconcile loop completed successfully")
-	
+
 	// Update status with current links to enable cleanup detection on future reconciles
 	multiclusterNetwork.Status.PreviousLinks = multiclusterNetwork.Spec.Links
 	if err := r.Status().Update(ctx, multiclusterNetwork); err != nil {
@@ -414,7 +408,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 	logger.Info("Successfully updated status with current links", "currentLinks", len(multiclusterNetwork.Spec.Links))
-	
+
 	// I want to have my reconcile look every 30 seconds
 	return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 
@@ -509,7 +503,7 @@ func (r *NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.C
 	for _, deployment := range deployments.Items {
 		// logger.Info("Checking deployment", "deploymentName", deployment.Name)
 
-		// Check if the deployment name matches any app name in the CRD
+		// Check if the deployment name matches any app name in the CR
 		for _, appName := range appNames {
 			//logger.Info("Checking app name", "appName", appName, "deployment", deployment.Name)
 
@@ -519,6 +513,7 @@ func (r *NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.C
 					deployment.Annotations = map[string]string{}
 				}
 				deployment.Annotations["skupper.io/proxy"] = "tcp"
+				// TODO this should not be a hard coded port number
 				deployment.Annotations["skupper.io/port"] = "8080"
 				deployment.Annotations["skupper.io/address"] = deployment.Name
 
@@ -536,9 +531,8 @@ func (r *NetworkReconciler) updateDeploymentsWithSkupperAnnotation(ctx context.C
 	return nil
 }
 
-func (r *NetworkReconciler) createSkupperProxyServices(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, targetCluster, sourceNamespace, targetNamespace string, serviceNames []string, port int, logger logr.Logger) error {
-	// Get the original services from source cluster, create proxy services on target cluster
-	logger.Info("Creating Skupper proxy services on target cluster", "targetCluster", targetCluster, "targetNamespace", targetNamespace, "serviceNames", serviceNames)
+func (r *NetworkReconciler) createSkupperProxyService(ctx context.Context, kubeconfig *clientcmdapi.Config, sourceCluster, sourceNamespace, serviceName string, port int, logger logr.Logger) error {
+	logger.Info("Creating Skupper proxy services on source cluster", "sourceCluster", sourceCluster)
 
 	// Get Kubernetes client for source cluster to read original services
 	sourceConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, sourceCluster, nil, nil).ClientConfig()
@@ -553,67 +547,52 @@ func (r *NetworkReconciler) createSkupperProxyServices(ctx context.Context, kube
 		return err
 	}
 
-	// List all services in the sourceNamespace on source cluster
-	servicesList, err := sourceClientset.CoreV1().Services(sourceNamespace).List(ctx, metav1.ListOptions{})
+	// Find the original service
+	originalService, err := sourceClientset.CoreV1().Services(sourceNamespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
-		logger.Error(err, "Failed to list services in sourceNamespace", "namespace", sourceNamespace)
+		logger.Info("Failed to find service", "serviceName", serviceName)
 		return err
 	}
 
-	// Iterate through the services defined in the CRD
-	for _, serviceName := range serviceNames {
-		logger.Info("Checking service", "serviceName", serviceName)
+	logger.Info("Found original service", "serviceName", originalService.Name)
 
-		// Find the original service
-		var originalService *corev1.Service
-		for _, service := range servicesList.Items {
-			if service.Name == serviceName {
-				originalService = &service
-				break
-			}
-		}
+	// Proxy service name has a "-skupper" suffix
+	skupperServiceName := serviceName + "-skupper"
+	// Copy spec and labels of the service being exposed
+	skupperServiceSpec := originalService.Spec.DeepCopy()
+	// Clear IP allocation fields to let Kubernetes assign new IPs
+	skupperServiceSpec.ClusterIP = ""
+	skupperServiceSpec.ClusterIPs = nil
 
-		if originalService == nil {
-			logger.Info("Original service not found", "serviceName", serviceName)
-			continue
-		}
-
-		logger.Info("Found original service", "serviceName", originalService.Name)
-
-		// Create the new service with -skupper suffix
-		skupperServiceName := serviceName + "-skupper"
-
-		// Check if the skupper service already exists on target cluster
-		_, err = sourceClientset.CoreV1().Services(sourceNamespace).Get(ctx, skupperServiceName, metav1.GetOptions{})
-		if err == nil {
-			logger.Info("Skupper service already exists", "serviceName", skupperServiceName)
-			continue
-		}
-
-		// Create new service with copied spec and labels
-		skupperServiceSpec := originalService.Spec.DeepCopy()
-		// Clear IP allocation fields to let Kubernetes assign new IPs
-		skupperServiceSpec.ClusterIP = ""
-		skupperServiceSpec.ClusterIPs = nil
-
-		skupperService := &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      skupperServiceName,
-				Namespace: sourceNamespace,
-				Labels:    originalService.Labels,
-				Annotations: map[string]string{
-					"skupper.io/proxy":  "tcp",
-					"skupper.io/port":   fmt.Sprintf("%d", port),
-					"skupper.io/target": serviceName, // Target is the original service
-				},
+	skupperService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      skupperServiceName,
+			Namespace: sourceNamespace,
+			Labels:    originalService.Labels,
+			Annotations: map[string]string{
+				"skupper.io/proxy":  "tcp",
+				"skupper.io/port":   fmt.Sprintf("%d", port),
+				"skupper.io/target": serviceName, // Target is the original service
 			},
-			Spec: *skupperServiceSpec,
+		},
+		Spec: *skupperServiceSpec,
+	}
+
+	//print out contents of spec
+	logger.Info("Skupper service spec", "spec", skupperServiceSpec)
+	logger.Info("Skupper service labels", "labels", skupperService.Labels)
+
+	// Check if the skupper service already exists on the cluster
+	service, err := sourceClientset.CoreV1().Services(sourceNamespace).Get(ctx, skupperServiceName, metav1.GetOptions{})
+	if err == nil {
+		_, err = sourceClientset.CoreV1().Services(sourceNamespace).Update(ctx, service, metav1.UpdateOptions{})
+		if err != nil {
+			logger.Error(err, "Failed to update service", "serviceName", skupperServiceName)
+			return err
 		}
 
-		//print out contents of spec
-		logger.Info("Skupper service spec", "spec", skupperServiceSpec)
-		logger.Info("Skupper service labels", "labels", skupperService.Labels)
-
+		logger.Info("Updated existing skupper proxy service", "serviceName", skupperServiceName)
+	} else {
 		// Create the new service on source cluster
 		_, err = sourceClientset.CoreV1().Services(sourceNamespace).Create(ctx, skupperService, metav1.CreateOptions{})
 		if err != nil {
@@ -627,8 +606,8 @@ func (r *NetworkReconciler) createSkupperProxyServices(ctx context.Context, kube
 }
 
 // createExternalNameServices creates ExternalName services on target clusters
-func (r *NetworkReconciler) createExternalNameServices(ctx context.Context, kubeconfig *clientcmdapi.Config, targetCluster, targetNamespace, sourceNamespace string, serviceNames []string, logger logr.Logger) error {
-	logger.Info("Creating ExternalName services on target cluster", "cluster", targetCluster, "namespace", targetNamespace)
+func (r *NetworkReconciler) createExternalNameService(ctx context.Context, kubeconfig *clientcmdapi.Config, targetCluster, targetNamespace, serviceName string, logger logr.Logger) error {
+	logger.Info("Creating ExternalName service on target cluster", "serviceName", serviceName, "cluster", targetCluster, "namespace", targetNamespace)
 
 	// Get Kubernetes client for target cluster
 	targetConfig, err := clientcmd.NewNonInteractiveClientConfig(*kubeconfig, targetCluster, nil, nil).ClientConfig()
@@ -643,46 +622,38 @@ func (r *NetworkReconciler) createExternalNameServices(ctx context.Context, kube
 		return err
 	}
 
-	// Create ExternalName service for each service in the CRD
-	for _, serviceName := range serviceNames {
-		logger.Info("Creating ExternalName service", "serviceName", serviceName)
+	// Create ExternalName service pointing to the skupper service in target namespace
+	skupperServiceFQDN := fmt.Sprintf("%s-skupper.%s.svc.cluster.local", serviceName, targetNamespace)
 
-		// Check if the service already exists
-		_, err = targetClientset.CoreV1().Services(targetNamespace).Get(ctx, serviceName, metav1.GetOptions{})
-		if err == nil {
-			logger.Info("ExternalName service already exists", "serviceName", serviceName)
-			continue
+	externalNameService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: targetNamespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:         corev1.ServiceTypeExternalName,
+			ExternalName: skupperServiceFQDN,
+		},
+	}
+
+	// Check if the service already exists
+	service, err := targetClientset.CoreV1().Services(targetNamespace).Get(ctx, serviceName, metav1.GetOptions{})
+	if err == nil {
+		_, err = targetClientset.CoreV1().Services(targetNamespace).Update(ctx, service, metav1.UpdateOptions{})
+		if err != nil {
+			logger.Error(err, "Failed to update ExternalName service", "serviceName", serviceName)
+			return err
 		}
-
-		// Create ExternalName service pointing to the skupper service in target namespace
-		skupperServiceFQDN := fmt.Sprintf("%s-skupper.%s.svc.cluster.local", serviceName, targetNamespace)
-
-		externalNameService := &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      serviceName,
-				Namespace: targetNamespace,
-			},
-			Spec: corev1.ServiceSpec{
-				Type:         corev1.ServiceTypeExternalName,
-				ExternalName: skupperServiceFQDN,
-			},
-		}
-
+		logger.Info("Updated existing ExternalName service", "serviceName", serviceName)
+	} else {
 		// Create the ExternalName service
 		_, err = targetClientset.CoreV1().Services(targetNamespace).Create(ctx, externalNameService, metav1.CreateOptions{})
 		if err != nil {
-			if strings.Contains(err.Error(), "already exists") {
-				logger.Info("ExternalName service already exists", "serviceName", serviceName)
-				continue
-			}
 			logger.Error(err, "Failed to create ExternalName service", "serviceName", serviceName)
 			return err
 		}
 
-		logger.Info("Successfully created ExternalName service",
-			"serviceName", serviceName,
-			"namespace", targetNamespace,
-			"externalName", skupperServiceFQDN)
+		logger.Info("Successfully created ExternalName service", "serviceName", serviceName, "namespace", targetNamespace, "externalName", skupperServiceFQDN)
 	}
 
 	return nil
@@ -817,29 +788,15 @@ func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clien
 		return err
 	}
 
-	// List all services in the sourceNamespace on source cluster
-	servicesList, err := sourceClientset.CoreV1().Services(sourceNamespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		logger.Error(err, "Failed to list services in sourceNamespace", "namespace", sourceNamespace)
-		return err
-	}
-
-	// Iterate through the services defined in the CRD
+	// Iterate through the services defined in the CR
 	for _, servicePair := range servicePairs {
 		serviceName := servicePair.Name
 		port := servicePair.Port
 		logger.Info("Processing service", "serviceName", serviceName, "port", port)
 
-		// Find the original service
-		var originalService *corev1.Service
-		for _, service := range servicesList.Items {
-			if service.Name == serviceName {
-				originalService = &service
-				break
-			}
-		}
-
-		if originalService == nil {
+		// Find the service
+		originalService, err := sourceClientset.CoreV1().Services(sourceNamespace).Get(ctx, serviceName, metav1.GetOptions{})
+		if err != nil {
 			logger.Info("Original service not found", "serviceName", serviceName)
 			continue
 		}
@@ -862,22 +819,15 @@ func (r *NetworkReconciler) exposeService(ctx context.Context, kubeconfig *clien
 			// Service has AppliedManifestWork owner - use full proxy/external name approach
 			logger.Info("Using full proxy/external name approach for service with AppliedManifestWork owner", "serviceName", serviceName)
 
-			// Call createSkupperProxyServices for this specific service on SOURCE cluster
-			err = r.createSkupperProxyServices(ctx, kubeconfig, sourceCluster, targetCluster, sourceNamespace, targetNamespace, []string{serviceName}, port, logger)
+			// Create a Skupper proxy service on the SOURCE cluster
+			err = r.createSkupperProxyService(ctx, kubeconfig, sourceCluster, sourceNamespace, serviceName, port, logger)
 			if err != nil {
 				logger.Error(err, "Failed to create Skupper proxy services for service with AppliedManifestWork owner", "serviceName", serviceName)
 				return err
 			}
 
-			// Call createSkupperProxyServices for this specific service on TARGET cluster
-			err = r.createSkupperProxyServices(ctx, kubeconfig, targetCluster, sourceCluster, targetNamespace, sourceNamespace, []string{serviceName}, port, logger)
-			if err != nil {
-				logger.Error(err, "Failed to create Skupper proxy services on target cluster for service with AppliedManifestWork owner", "serviceName", serviceName)
-				return err
-			}
-
-			// Call createExternalNameServices for this specific service
-			err = r.createExternalNameServices(ctx, kubeconfig, targetCluster, targetNamespace, sourceNamespace, []string{serviceName}, logger)
+			// Create a service of type ExternalName on the target cluster pointing to the replicated Skupper proxy service
+			err = r.createExternalNameService(ctx, kubeconfig, targetCluster, targetNamespace, serviceName, logger)
 			if err != nil {
 				logger.Error(err, "Failed to create ExternalName services for service with AppliedManifestWork owner", "serviceName", serviceName)
 				return err
